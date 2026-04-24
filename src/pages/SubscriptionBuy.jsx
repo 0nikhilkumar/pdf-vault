@@ -16,14 +16,43 @@ import { formatDate } from "@/lib/utils";
 
 const API_BASE_URL =
   import.meta.env.VITE_API_BASE_URL || "http://localhost:3000/api";
+const RAZORPAY_BASE_PATH = `${API_BASE_URL}/users/razorpay`;
+const RAZORPAY_SCRIPT_URL = "https://checkout.razorpay.com/v1/checkout.js";
+
+const getCheckoutRedirectUrl = (payload) =>
+  payload?.url || payload?.checkoutUrl || payload?.short_url || null;
+
+const loadRazorpayScript = () => {
+  if (window.Razorpay) return Promise.resolve(true);
+
+  return new Promise((resolve) => {
+    const existing = document.querySelector(
+      `script[src="${RAZORPAY_SCRIPT_URL}"]`,
+    );
+
+    if (existing) {
+      existing.addEventListener("load", () => resolve(true), { once: true });
+      existing.addEventListener("error", () => resolve(false), { once: true });
+      return;
+    }
+
+    const script = document.createElement("script");
+    script.src = RAZORPAY_SCRIPT_URL;
+    script.async = true;
+    script.onload = () => resolve(true);
+    script.onerror = () => resolve(false);
+    document.body.appendChild(script);
+  });
+};
 
 const SubscriptionBuy = () => {
   const { user, accessToken, subscriptionPlans, subscriptionPlan } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
-  const [selectedPlanId, setSelectedPlanId] = useState(subscriptionPlans[0].id);
+  const [selectedPlanId, setSelectedPlanId] = useState(
+    subscriptionPlan?.id || subscriptionPlans[0].id,
+  );
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isExtending, setIsExtending] = useState(false);
   const [subscriptionData, setSubscriptionData] = useState(null);
 
   const currentPlanId =
@@ -86,11 +115,15 @@ const SubscriptionBuy = () => {
           throw new Error("Please log in again to continue checkout");
         }
         if (!plan?.priceId) {
-          throw new Error("Selected plan is missing Stripe price ID");
+          throw new Error("Selected plan is missing payment plan ID");
+        }
+        const gatewayPlanId = String(plan.priceId).trim();
+        if (!gatewayPlanId.startsWith("plan_")) {
+          throw new Error("Invalid Razorpay plan ID configured");
         }
 
         const response = await fetch(
-          `${API_BASE_URL}/users/stripe/create-checkout-session`,
+          `${RAZORPAY_BASE_PATH}/create-checkout-session`,
           {
             method: "POST",
             credentials: "include",
@@ -99,8 +132,8 @@ const SubscriptionBuy = () => {
               Authorization: `Bearer ${accessToken}`,
             },
             body: JSON.stringify({
-              priceId: plan.priceId,
-              planId: plan.id,
+              priceId: gatewayPlanId,
+              planId: gatewayPlanId,
               subscriptionPlanId: plan.id,
             }),
           },
@@ -113,15 +146,107 @@ const SubscriptionBuy = () => {
         } catch {
           data = null;
         }
-        if (!response.ok || !data?.url) {
+        if (!response.ok) {
           throw new Error(
             data?.message ||
               raw ||
-              `Unable to start Stripe checkout (HTTP ${response.status})`,
+              `Unable to start payment checkout (HTTP ${response.status})`,
           );
         }
 
-        window.location.href = data.url;
+        console.log("🔵 Backend Response:", data);
+
+        const orderId = data?.order_id || data?.orderId || data?.order?.id;
+        const subscriptionId =
+          data?.subscription_id ||
+          data?.subscriptionId ||
+          data?.subscription?.id;
+
+        const redirectUrl = getCheckoutRedirectUrl(data);
+        const canUseEmbeddedCheckout = Boolean(orderId || subscriptionId);
+        if (redirectUrl && !canUseEmbeddedCheckout) {
+          window.location.href = redirectUrl;
+          return;
+        }
+
+        const scriptLoaded = await loadRazorpayScript();
+        if (!scriptLoaded) {
+          throw new Error(
+            "Razorpay checkout script failed to load. Please refresh and try again.",
+          );
+        }
+
+        if (!orderId && !subscriptionId) {
+          throw new Error(
+            data?.message ||
+              "Checkout session created but no redirect URL/order/subscription details were returned.",
+          );
+        }
+
+        const key = data?.key || data?.razorpayKeyId || "";
+        if (!key) {
+          throw new Error(
+            "Missing Razorpay key from backend. Contact support.",
+          );
+        }
+
+        console.log(
+          "🟢 Razorpay Key Mode:",
+          key.includes("test") ? "TEST MODE ✓" : "LIVE MODE ⚠️",
+        );
+        console.log("🟢 Order ID:", orderId);
+        console.log("🟢 Currency:", data?.currency || "INR");
+        console.log("🟢 Method Config from Backend:", data?.method);
+
+        const amount = Number(data?.amount ?? data?.order?.amount ?? 0);
+        const options = {
+          key,
+          amount: Number.isFinite(amount) && amount > 0 ? amount : undefined,
+          currency: data?.currency || data?.order?.currency || "INR",
+          method: data?.method || {},
+          name: "Secure PDF Vault",
+          description: `${plan.name} subscription`,
+          order_id: orderId,
+          subscription_id: subscriptionId,
+          callback_url: data?.callback_url || data?.callbackUrl,
+          prefill: {
+            name: user?.name || user?.username || "",
+            email: user?.email || "",
+            contact: user?.phone || "",
+          },
+          theme: {
+            color: "#0ea5e9",
+          },
+          handler: () => {
+            window.location.href = "/subscription/success";
+          },
+          modal: {
+            ondismiss: () => {
+              toast({
+                title: "Payment cancelled",
+                description: "You can retry the payment anytime.",
+                variant: "destructive",
+              });
+            },
+          },
+        };
+
+        console.log("📋 Razorpay Checkout Options:", options);
+
+        const checkout = new window.Razorpay(options);
+        checkout.on("payment.failed", (failureResponse) => {
+          const errorMessage =
+            failureResponse?.error?.description ||
+            failureResponse?.error?.reason ||
+            "Payment failed. Please try again.";
+
+          toast({
+            title: "Payment failed",
+            description: errorMessage,
+            variant: "destructive",
+          });
+        });
+        checkout.open();
       } catch (error) {
         toast({
           title: "Checkout failed",
@@ -212,6 +337,7 @@ const SubscriptionBuy = () => {
           <div className="grid md:grid-cols-2 gap-6 mb-8">
             {subscriptionPlans.map((plan) => {
               const isSelected = selectedPlanId === plan.id;
+              const isCurrentPlan = currentPlanId === plan.id;
 
               return (
                 <div
@@ -263,7 +389,7 @@ const SubscriptionBuy = () => {
                     }}
                     disabled={isSubmitting}
                   >
-                    {user?.hasSubscription ? (
+                    {user?.hasSubscription && isCurrentPlan ? (
                       <>
                         <RefreshCw className="h-4 w-4 mr-2" />
                         {isSubmitting ? "Redirecting..." : "Extend"}

@@ -15,7 +15,7 @@ import pdfWorker from "pdfjs-dist/build/pdf.worker.min.mjs?url";
 import { useAuth } from "@/contexts/AuthContext";
 import { usePdfs } from "@/contexts/PdfContext";
 import { Button } from "@/components/ui/button";
-import { parseJsonSafely, withAuthHeader } from "@/lib/api";
+import { buildApiUrl, parseJsonSafely, withAuthHeader } from "@/lib/api";
 
 GlobalWorkerOptions.workerSrc = pdfWorker;
 
@@ -86,34 +86,70 @@ const PdfViewer = ({ pdf, onClose }) => {
         setZoomLevel(1);
         setRotation(0);
 
-        const endpoint = getPdfFileEndpoint(
-          pdf?.fileName || pdf?.storedName || pdf?.name,
-        );
-        if (!endpoint) {
+        const fileIdentifier = pdf?.fileName || pdf?.storedName || pdf?.name;
+        const endpointCandidates = [
+          {
+            url:
+              pdf?.fileEndpoint ||
+              (fileIdentifier
+                ? buildApiUrl(
+                    `/landing-page/pdf/file/${encodeURIComponent(fileIdentifier)}`,
+                  )
+                : ""),
+            requiresAuth: false,
+          },
+          {
+            url: fileIdentifier
+              ? buildApiUrl(
+                  `/landing-page/pdf/${encodeURIComponent(fileIdentifier)}`,
+                )
+              : "",
+            requiresAuth: false,
+          },
+          {
+            url: getPdfFileEndpoint(fileIdentifier),
+            requiresAuth: true,
+          },
+        ].filter((candidate) => Boolean(candidate.url));
+
+        if (endpointCandidates.length === 0) {
           setFileLoadError("File not found");
           return;
         }
 
-        const response = await fetch(endpoint, {
-          method: "GET",
-          credentials: "include",
-          headers: withAuthHeader(accessToken),
-        });
+        let resolvedResponse = null;
+        let resolvedPayload = null;
 
-        if (!response.ok) {
-          const payload = await parseJsonSafely(response);
+        for (const candidate of endpointCandidates) {
+          const response = await fetch(candidate.url, {
+            method: "GET",
+            credentials: candidate.requiresAuth ? "include" : "omit",
+            headers: candidate.requiresAuth ? withAuthHeader(accessToken) : {},
+          });
+
+          if (response.ok) {
+            resolvedResponse = response;
+            break;
+          }
+
+          resolvedPayload = await parseJsonSafely(response);
+
+          if (!candidate.requiresAuth && response.status === 403) {
+            if (!isMounted) return;
+            setFileLoadError(
+              resolvedPayload?.message || "This PDF is locked for free users",
+            );
+            return;
+          }
+        }
+
+        if (!resolvedResponse) {
           if (!isMounted) return;
-
-          setFileLoadError(
-            payload?.message ||
-              (response.status === 403
-                ? "This PDF is locked for free users"
-                : "File not found"),
-          );
+          setFileLoadError(resolvedPayload?.message || "File not found");
           return;
         }
 
-        const fetchedBlob = await response.blob();
+        const fetchedBlob = await resolvedResponse.blob();
         const fileData = new Uint8Array(await fetchedBlob.arrayBuffer());
 
         loadingTask = getDocument({ data: fileData });
@@ -147,6 +183,7 @@ const PdfViewer = ({ pdf, onClose }) => {
   }, [
     accessToken,
     getPdfFileEndpoint,
+    pdf?.fileEndpoint,
     pdf?.fileName,
     pdf?.name,
     pdf?.storedName,

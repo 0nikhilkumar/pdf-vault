@@ -8,13 +8,23 @@ import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { buildApiUrl, parseJsonSafely, withAuthHeader } from "@/lib/api";
 
+const parseLockedFlag = (value) => {
+  if (typeof value === "string") {
+    const normalized = value.trim().toLowerCase();
+    if (normalized === "true") return true;
+    if (normalized === "false") return false;
+  }
+
+  return Boolean(value);
+};
+
 const AdminUpload = () => {
   const { accessToken } = useAuth();
   const { toast } = useToast();
   const [pdfFile, setPdfFile] = useState(null);
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
-  const [locked, setLocked] = useState(false);
+  const [locked, setLocked] = useState(true);
   const [pdfs, setPdfs] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [uploaded, setUploaded] = useState(false);
@@ -38,7 +48,13 @@ const AdminUpload = () => {
         throw new Error(payload?.message || "Unable to load PDFs");
       }
 
-      setPdfs(Array.isArray(payload?.pdfs) ? payload.pdfs : []);
+      const files = Array.isArray(payload?.pdfs) ? payload.pdfs : [];
+      setPdfs(
+        files.map((pdf) => ({
+          ...pdf,
+          locked: parseLockedFlag(pdf?.locked ?? pdf?.isLocked),
+        })),
+      );
     } catch {
       setPdfs([]);
     } finally {
@@ -66,7 +82,9 @@ const AdminUpload = () => {
     if (description.trim()) {
       formData.append("description", description.trim());
     }
-    formData.append("locked", locked ? "true" : "false");
+    const lockedValue = locked ? "true" : "false";
+    formData.append("locked", lockedValue);
+    formData.append("isLocked", lockedValue);
 
     const response = await fetch(buildApiUrl("/admin/pdfs/upload"), {
       method: "POST",
@@ -85,7 +103,7 @@ const AdminUpload = () => {
     setPdfFile(null);
     setTitle("");
     setDescription("");
-    setLocked(false);
+    setLocked(true);
     toast({ title: payload?.message || "Admin PDF uploaded successfully" });
     await loadPdfs();
     setTimeout(() => setUploaded(false), 2000);
@@ -95,7 +113,7 @@ const AdminUpload = () => {
     setEditingPdfId(pdf?._id || "");
     setEditTitle(pdf?.title || pdf?.originalName || "");
     setEditDescription(pdf?.description || "");
-    setEditLocked(Boolean(pdf?.locked));
+    setEditLocked(parseLockedFlag(pdf?.locked ?? pdf?.isLocked));
   };
 
   const cancelEdit = () => {
@@ -125,6 +143,7 @@ const AdminUpload = () => {
           title: editTitle.trim(),
           description: editDescription.trim(),
           locked: editLocked,
+          isLocked: editLocked,
         }),
       });
 
@@ -187,7 +206,7 @@ const AdminUpload = () => {
               checked={locked}
               onChange={(event) => setLocked(event.target.checked)}
             />
-            Mark as locked (premium/admin only)
+            Mark as locked (free users won't see this document)
           </label>
           <Button
             onClick={handleUpload}

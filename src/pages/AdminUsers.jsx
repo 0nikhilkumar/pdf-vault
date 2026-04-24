@@ -4,6 +4,9 @@ import { Crown, User } from "lucide-react";
 import { useLocation } from "react-router-dom";
 import Layout from "@/components/Layout";
 import { useAuth } from "@/contexts/AuthContext";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { useToast } from "@/hooks/use-toast";
 import { formatDate } from "@/lib/utils";
 import { buildApiUrl, parseJsonSafely, withAuthHeader } from "@/lib/api";
 
@@ -11,12 +14,18 @@ const AdminUsers = () => {
   const location = useLocation();
   const isSubscribedPage = location.pathname === "/admin/subscribed-users";
   const { accessToken } = useAuth();
+  const { toast } = useToast();
   const [users, setUsers] = useState([]);
   const [subscribedUsers, setSubscribedUsers] = useState([]);
   const [isLoadingUsers, setIsLoadingUsers] = useState(true);
   const [expandedUserId, setExpandedUserId] = useState("");
   const [selectedUserSummary, setSelectedUserSummary] = useState(null);
   const [isLoadingSummary, setIsLoadingSummary] = useState(false);
+  const [action, setAction] = useState("extend");
+  const [subscriptionType, setSubscriptionType] = useState("basic");
+  const [paymentType, setPaymentType] = useState("manual");
+  const [remark, setRemark] = useState("");
+  const [isSubmittingAction, setIsSubmittingAction] = useState(false);
 
   useEffect(() => {
     let isMounted = true;
@@ -106,10 +115,114 @@ const AdminUsers = () => {
       }
 
       setSelectedUserSummary(payload?.users || null);
+
+      const nextSummary = payload?.users || null;
+      setSubscriptionType(
+        String(
+          nextSummary?.subscriptionType ||
+            nextSummary?.upcomingSubscription?.subscriptionType ||
+            "basic",
+        ).toLowerCase(),
+      );
     } catch {
       setSelectedUserSummary(null);
     } finally {
       setIsLoadingSummary(false);
+    }
+  };
+
+  const handleManualAction = async () => {
+    if (!expandedUserId) {
+      toast({ title: "Select a user first" });
+      return;
+    }
+
+    const subscriptionId =
+      selectedUserSummary?.subscriptionId ||
+      selectedUserSummary?._id ||
+      selectedUserSummary?.activeSubscription?._id ||
+      undefined;
+
+    try {
+      setIsSubmittingAction(true);
+
+      const response = await fetch(
+        buildApiUrl("/subscriptions/manual-action"),
+        {
+          method: "POST",
+          credentials: "include",
+          headers: {
+            ...withAuthHeader(accessToken),
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            userId: expandedUserId,
+            action,
+            subscriptionType,
+            paymentType,
+            remark: remark.trim(),
+            ...(subscriptionId ? { subscriptionId } : {}),
+          }),
+        },
+      );
+
+      const payload = await parseJsonSafely(response);
+      if (!response.ok) {
+        throw new Error(
+          payload?.message || "Manual subscription action failed",
+        );
+      }
+
+      const updatedSubscription = payload?.subscription || null;
+      if (updatedSubscription) {
+        setSelectedUserSummary((prev) => ({
+          ...(prev || {}),
+          subscriptionId: updatedSubscription._id || prev?.subscriptionId,
+          subscriptionStatus:
+            updatedSubscription.status || prev?.subscriptionStatus,
+          subscriptionType:
+            updatedSubscription.subscriptionType || prev?.subscriptionType,
+          startDate: updatedSubscription.startDate || prev?.startDate,
+          purchaseDate: updatedSubscription.purchaseDate || prev?.purchaseDate,
+          expiryDate: updatedSubscription.expiryDate || prev?.expiryDate,
+          paymentType: updatedSubscription.paymentType || prev?.paymentType,
+          adminRemark: updatedSubscription.adminRemark || prev?.adminRemark,
+          appliedDurationDays:
+            updatedSubscription.appliedDurationDays ??
+            prev?.appliedDurationDays,
+          lastAdminAction:
+            updatedSubscription.lastAdminAction || prev?.lastAdminAction,
+        }));
+
+        const nextStatus = String(
+          updatedSubscription.status || "",
+        ).toLowerCase();
+        const isActive = nextStatus === "active" || nextStatus === "subscribed";
+
+        if (isActive) {
+          setSubscribedUsers((prev) => {
+            const exists = prev.some(
+              (entry) => String(entry?._id) === String(expandedUserId),
+            );
+            return exists ? prev : [{ _id: expandedUserId }, ...prev];
+          });
+        } else {
+          setSubscribedUsers((prev) =>
+            prev.filter(
+              (entry) => String(entry?._id) !== String(expandedUserId),
+            ),
+          );
+        }
+      }
+
+      toast({ title: payload?.message || "Subscription updated successfully" });
+    } catch (error) {
+      toast({
+        title: error?.message || "Unable to process manual action",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSubmittingAction(false);
     }
   };
 
@@ -241,27 +354,93 @@ const AdminUsers = () => {
             </p>
           )}
           {!isLoadingSummary && selectedUserSummary && (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
-              <p className="text-foreground">
-                User: {selectedUserSummary.email || selectedUserSummary.userId}
-              </p>
-              <p className="text-foreground">
-                Status: {selectedUserSummary.subscriptionStatus || "N/A"}
-              </p>
-              <p className="text-muted-foreground">
-                Expiry: {formatDate(selectedUserSummary.expiryDate)}
-              </p>
-              <p className="text-muted-foreground">
-                Type: {selectedUserSummary.subscriptionType || "-"}
-              </p>
-              <p className="text-muted-foreground">
-                Purchase: {formatDate(selectedUserSummary.purchaseDate)}
-              </p>
-              <p className="text-muted-foreground">
-                Upcoming:{" "}
-                {selectedUserSummary.upcomingSubscription?.subscriptionType ||
-                  "-"}
-              </p>
+            <div className="space-y-5">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
+                <p className="text-foreground">
+                  User:{" "}
+                  {selectedUserSummary.email || selectedUserSummary.userId}
+                </p>
+                <p className="text-foreground">
+                  Status: {selectedUserSummary.subscriptionStatus || "N/A"}
+                </p>
+                <p className="text-muted-foreground">
+                  Expiry: {formatDate(selectedUserSummary.expiryDate)}
+                </p>
+                <p className="text-muted-foreground">
+                  Type: {selectedUserSummary.subscriptionType || "-"}
+                </p>
+                <p className="text-muted-foreground">
+                  Purchase: {formatDate(selectedUserSummary.purchaseDate)}
+                </p>
+                <p className="text-muted-foreground">
+                  Upcoming:{" "}
+                  {selectedUserSummary.upcomingSubscription?.subscriptionType ||
+                    "-"}
+                </p>
+              </div>
+
+              <div className="border-t border-border pt-4">
+                <h3 className="text-sm font-semibold text-foreground mb-3">
+                  Manual Subscription Action (Admin only)
+                </h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
+                  <label className="text-xs text-muted-foreground space-y-1">
+                    <span>Action</span>
+                    <select
+                      value={action}
+                      onChange={(event) => setAction(event.target.value)}
+                      className="w-full h-10 rounded-md border border-border bg-background px-3 text-sm text-foreground"
+                    >
+                      <option value="extend">extend</option>
+                      <option value="activate">activate</option>
+                      <option value="deactivate">deactivate</option>
+                      <option value="cancel">cancel</option>
+                    </select>
+                  </label>
+
+                  <label className="text-xs text-muted-foreground space-y-1">
+                    <span>Subscription Type</span>
+                    <select
+                      value={subscriptionType}
+                      onChange={(event) =>
+                        setSubscriptionType(event.target.value)
+                      }
+                      className="w-full h-10 rounded-md border border-border bg-background px-3 text-sm text-foreground"
+                    >
+                      <option value="basic">basic</option>
+                      <option value="premium">premium</option>
+                    </select>
+                  </label>
+
+                  <label className="text-xs text-muted-foreground space-y-1">
+                    <span>Payment Type</span>
+                    <select
+                      value={paymentType}
+                      onChange={(event) => setPaymentType(event.target.value)}
+                      className="w-full h-10 rounded-md border border-border bg-background px-3 text-sm text-foreground"
+                    >
+                      <option value="manual">manual</option>
+                      <option value="online">online</option>
+                    </select>
+                  </label>
+                </div>
+
+                <label className="text-xs text-muted-foreground space-y-1 block mb-3">
+                  <span>Remark</span>
+                  <Input
+                    value={remark}
+                    onChange={(event) => setRemark(event.target.value)}
+                    placeholder="Admin remark"
+                  />
+                </label>
+
+                <Button
+                  onClick={handleManualAction}
+                  disabled={isSubmittingAction}
+                >
+                  {isSubmittingAction ? "Submitting..." : "Apply Manual Action"}
+                </Button>
+              </div>
             </div>
           )}
         </div>

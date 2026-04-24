@@ -10,6 +10,16 @@ import { buildApiUrl, parseJsonSafely, withAuthHeader } from "@/lib/api";
 
 const PdfContext = createContext(null);
 
+const parseLockedFlag = (value) => {
+  if (typeof value === "string") {
+    const normalized = value.trim().toLowerCase();
+    if (normalized === "true") return true;
+    if (normalized === "false") return false;
+  }
+
+  return Boolean(value);
+};
+
 const normalizePdf = (item) => {
   const originalName = item?.originalName || item?.title || "Untitled.pdf";
   const storedName = item?.storedName || item?.fileName || originalName;
@@ -21,7 +31,7 @@ const normalizePdf = (item) => {
     name: item?.title || originalName,
     title: item?.title || originalName,
     description: item?.description || "",
-    locked: Boolean(item?.locked),
+    locked: parseLockedFlag(item?.locked ?? item?.isLocked),
     originalName,
     fileName: storedName,
     uploadedBy: item?.uploadedBy || item?.uploadedByName || "You",

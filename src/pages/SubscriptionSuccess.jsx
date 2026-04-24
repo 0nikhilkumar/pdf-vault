@@ -54,7 +54,7 @@ const SubscriptionSuccess = () => {
       try {
         const sessionId = searchParams.get("session_id");
         const endpoint = new URL(
-          "http://localhost:3000/api/users/stripe/subscription",
+          "http://localhost:3000/api/users/razorpay/subscription",
         );
         if (sessionId) {
           endpoint.searchParams.set("session_id", sessionId);
@@ -83,7 +83,7 @@ const SubscriptionSuccess = () => {
         } else {
           toast({
             title: "Subscription not active",
-            description: "Payment is pending confirmation from Stripe.",
+            description: "Payment is pending confirmation from Razorpay.",
             variant: "destructive",
           });
         }

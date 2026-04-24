@@ -1,7 +1,10 @@
+import { useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
 import {
   ArrowRight,
+  Calendar,
   FileText,
+  Lock,
   LockKeyhole,
   ShieldCheck,
   Sparkles,
@@ -10,6 +13,8 @@ import {
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
+import PdfViewer from "@/components/PdfViewer";
+import { buildApiUrl, parseJsonSafely } from "@/lib/api";
 
 const features = [
   {
@@ -30,9 +35,103 @@ const features = [
   },
 ];
 
+const parseLockedFlag = (value) => {
+  if (typeof value === "string") {
+    const normalized = value.trim().toLowerCase();
+    if (normalized === "true") return true;
+    if (normalized === "false") return false;
+  }
+
+  return Boolean(value);
+};
+
+const normalizeLandingPdf = (item, index) => {
+  const fallbackName = `Document ${index + 1}.pdf`;
+  const title = item?.title || item?.originalName || item?.name || fallbackName;
+  const uploadedAt = item?.uploadedAt || item?.createdAt || null;
+  const fileName =
+    item?.storedName ||
+    item?.fileName ||
+    item?.name ||
+    item?.originalName ||
+    "";
+  const publicFileUrl =
+    item?.fileUrl || item?.url || item?.path || item?.downloadUrl || "";
+  const fallbackPublicEndpoint = fileName
+    ? buildApiUrl(`/landing-page/pdf/file/${encodeURIComponent(fileName)}`)
+    : "";
+
+  return {
+    id: item?.id || item?._id || `landing-pdf-${index}`,
+    name: title,
+    title,
+    description: item?.description || "",
+    locked: parseLockedFlag(item?.locked ?? item?.isLocked),
+    uploadedBy: item?.uploadedBy || item?.uploadedByName || "Admin",
+    uploadedAt: uploadedAt
+      ? new Date(uploadedAt).toISOString().split("T")[0]
+      : "Recently added",
+    fileName,
+    storedName: fileName,
+    fileEndpoint: publicFileUrl || fallbackPublicEndpoint,
+  };
+};
+
 const Index = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const [landingPdfs, setLandingPdfs] = useState([]);
+  const [isLoadingLandingPdfs, setIsLoadingLandingPdfs] = useState(true);
+  const [viewingPdf, setViewingPdf] = useState(null);
+
+  useEffect(() => {
+    let ignore = false;
+
+    const loadLandingPdfs = async () => {
+      try {
+        setIsLoadingLandingPdfs(true);
+        const response = await fetch(buildApiUrl("/landing-page/pdf"), {
+          method: "GET",
+          credentials: "omit",
+        });
+        const payload = await parseJsonSafely(response);
+
+        if (!response.ok) {
+          throw new Error(payload?.message || "Unable to load PDFs");
+        }
+
+        const files = Array.isArray(payload?.pdfs)
+          ? payload.pdfs
+          : Array.isArray(payload?.data)
+            ? payload.data
+            : Array.isArray(payload)
+              ? payload
+              : [];
+
+        if (!ignore) {
+          setLandingPdfs(
+            files.map((item, index) => normalizeLandingPdf(item, index)),
+          );
+        }
+      } catch {
+        if (!ignore) {
+          setLandingPdfs([]);
+        }
+      } finally {
+        if (!ignore) {
+          setIsLoadingLandingPdfs(false);
+        }
+      }
+    };
+
+    loadLandingPdfs();
+
+    return () => {
+      ignore = true;
+    };
+  }, []);
+
+  const featuredPdf = useMemo(() => landingPdfs[0], [landingPdfs]);
 
   const handleDashboardNavigation = () => {
     if (!user) {
@@ -171,17 +270,19 @@ const Index = () => {
           >
             <div className="rounded-3xl border border-border bg-card p-4 md:p-6 shadow-sm">
               <div className="mb-4 flex items-center justify-between">
-                <div className="text-sm font-semibold">
-                  Weekly Research Report.pdf
+                <div className="text-sm font-semibold truncate pr-3">
+                  {featuredPdf?.title || "Weekly Research Report.pdf"}
                 </div>
                 <span className="rounded-full bg-primary/15 px-3 py-1 text-xs text-primary">
-                  View Only
+                  {featuredPdf?.locked ? "Locked" : "View Only"}
                 </span>
               </div>
 
               <div className="relative overflow-hidden rounded-2xl border border-border bg-secondary/35 p-5 md:p-6">
                 <div className="absolute inset-0 bg-gradient-to-b from-transparent via-background/25 to-background/45 pointer-events-none" />
-                <div className="space-y-3 blur-[2.2px] select-none opacity-85">
+                <div
+                  className={`space-y-3 select-none opacity-85 ${featuredPdf?.locked ? "blur-[2.2px]" : "blur-0"}`}
+                >
                   <div className="h-3 rounded bg-muted w-10/12" />
                   <div className="h-3 rounded bg-muted w-9/12" />
                   <div className="h-3 rounded bg-muted w-11/12" />
@@ -191,12 +292,124 @@ const Index = () => {
                   <div className="h-3 rounded bg-muted w-9/12" />
                   <div className="h-3 rounded bg-muted w-6/12" />
                 </div>
+                {featuredPdf?.locked && (
+                  <div className="absolute inset-0 flex items-center justify-center bg-background/40 backdrop-blur-[1.8px]">
+                    <span className="inline-flex items-center gap-1 rounded-full border border-border bg-background/80 px-3 py-1 text-xs font-medium text-foreground">
+                      <Lock className="h-3.5 w-3.5" /> Locked
+                    </span>
+                  </div>
+                )}
                 <div className="mt-5 rounded-xl border border-accent/40 bg-accent/10 p-3 text-xs text-foreground/80">
-                  Preview stays blurred until authenticated access.
+                  {featuredPdf?.locked
+                    ? "Preview stays blurred until authenticated access."
+                    : "This PDF is visible on the landing page."}
                 </div>
               </div>
             </div>
           </motion.section>
+        </section>
+
+        <section className="mt-14">
+          <div className="mb-5 flex items-center justify-between gap-3">
+            <h3 className="text-2xl font-bold tracking-tight">Latest PDFs</h3>
+            <Button variant="outline" size="sm" onClick={handleGetStarted}>
+              {user ? "Open Dashboard" : "Unlock All"}
+              <ArrowRight className="h-4 w-4" />
+            </Button>
+          </div>
+
+          {isLoadingLandingPdfs ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              {[1, 2, 3].map((item) => (
+                <div
+                  key={item}
+                  className="rounded-2xl border border-border bg-card p-5 animate-pulse"
+                >
+                  <div className="h-4 w-3/4 rounded bg-muted mb-4" />
+                  <div className="h-20 rounded bg-muted mb-3" />
+                  <div className="h-3 w-1/2 rounded bg-muted" />
+                </div>
+              ))}
+            </div>
+          ) : landingPdfs.length > 0 ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              {landingPdfs.slice(0, 6).map((pdf, index) => (
+                <motion.article
+                  key={pdf.id}
+                  initial={{ opacity: 0, y: 14 }}
+                  whileInView={{ opacity: 1, y: 0 }}
+                  viewport={{ once: true }}
+                  transition={{ duration: 0.35, delay: index * 0.06 }}
+                  className={`rounded-2xl border border-border bg-card p-5 ${pdf.locked ? "opacity-95" : "cursor-pointer hover:border-primary/40 transition-colors"}`}
+                  onClick={() => {
+                    if (!pdf.locked) {
+                      setViewingPdf(pdf);
+                    }
+                  }}
+                >
+                  <div className="mb-4 flex items-center justify-between gap-2">
+                    <h4 className="text-sm font-semibold truncate">
+                      {pdf.title}
+                    </h4>
+                    {pdf.locked ? (
+                      <span className="inline-flex items-center gap-1 rounded-full border border-border bg-muted px-2.5 py-1 text-[10px] uppercase tracking-wide text-muted-foreground">
+                        <Lock className="h-3 w-3" /> Locked
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center rounded-full bg-primary/15 px-2.5 py-1 text-[10px] uppercase tracking-wide text-primary">
+                        Open
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="relative overflow-hidden rounded-xl border border-border bg-secondary/35 p-4 mb-4">
+                    <div
+                      className={`space-y-2 ${pdf.locked ? "blur-[2.5px]" : "blur-0"}`}
+                    >
+                      <div className="h-2.5 rounded bg-muted w-11/12" />
+                      <div className="h-2.5 rounded bg-muted w-9/12" />
+                      <div className="h-2.5 rounded bg-muted w-10/12" />
+                      <div className="h-2.5 rounded bg-muted w-8/12" />
+                    </div>
+                    {pdf.locked && (
+                      <div className="absolute inset-0 flex items-center justify-center bg-background/45 backdrop-blur-[1px]">
+                        <span className="rounded-full border border-border bg-background/85 px-3 py-1 text-xs font-medium">
+                          Locked Preview
+                        </span>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="flex items-center justify-between text-xs text-muted-foreground">
+                    <span className="inline-flex items-center gap-1">
+                      <FileText className="h-3.5 w-3.5" />
+                      {pdf.uploadedBy}
+                    </span>
+                    <span className="inline-flex items-center gap-1">
+                      <Calendar className="h-3.5 w-3.5" />
+                      {pdf.uploadedAt}
+                    </span>
+                  </div>
+                  {!pdf.locked && (
+                    <Button
+                      size="sm"
+                      className="mt-4 w-full"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        setViewingPdf(pdf);
+                      }}
+                    >
+                      Read Now
+                    </Button>
+                  )}
+                </motion.article>
+              ))}
+            </div>
+          ) : (
+            <div className="rounded-2xl border border-border bg-card p-8 text-center text-muted-foreground">
+              No PDFs available right now.
+            </div>
+          )}
         </section>
 
         <section className="mt-16 grid gap-4 sm:grid-cols-3">
@@ -298,6 +511,10 @@ const Index = () => {
             </button>
           </div>
         </footer>
+
+        {viewingPdf && (
+          <PdfViewer pdf={viewingPdf} onClose={() => setViewingPdf(null)} />
+        )}
       </div>
     </div>
   );

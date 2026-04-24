@@ -2,14 +2,18 @@ import { createContext, useContext, useEffect, useState } from "react";
 
 const AuthContext = createContext(null);
 const API_BASE_URL = "http://localhost:3000/api";
+const RAZORPAY_BASIC_PLAN_ID =
+  import.meta.env.VITE_RAZORPAY_BASIC_PLAN_ID || "plan_Sgt0wTPzSnBF7S";
+const RAZORPAY_PREMIUM_PLAN_ID =
+  import.meta.env.VITE_RAZORPAY_PREMIUM_PLAN_ID || "plan_Sgt0cmJPpcRc2t";
 
 const SUBSCRIPTION_PLANS = [
   {
     id: "basic",
     name: "Basic Plan",
-    priceInr: 190,
-    priceLabel: "Rs 190/month",
-    priceId: "price_1TNVCnLwsTNjToFFF9OUMS2e",
+    priceInr: 199,
+    priceLabel: "Rs 199/month",
+    priceId: RAZORPAY_BASIC_PLAN_ID,
     features: [
       "Read PDFs inside secure viewer",
       "Upload your own PDFs",
@@ -20,9 +24,9 @@ const SUBSCRIPTION_PLANS = [
   {
     id: "premium",
     name: "Premium Plan",
-    priceInr: 290,
-    priceLabel: "Rs 290/month",
-    priceId: "price_1TNVIOLwsTNjToFFXuP58u04",
+    priceInr: 299,
+    priceLabel: "Rs 299/month",
+    priceId: RAZORPAY_PREMIUM_PLAN_ID,
     features: [
       "Read PDFs inside secure viewer",
       "Upload your own PDFs",
@@ -480,8 +484,16 @@ export const AuthProvider = ({ children }) => {
       };
     }
 
+    const gatewayPlanId = String(currentPlan.priceId || "").trim();
+    if (!gatewayPlanId.startsWith("plan_")) {
+      return {
+        success: false,
+        message: "Invalid Razorpay plan ID configured",
+      };
+    }
+
     const response = await fetch(
-      `${API_BASE_URL}/users/stripe/subscription/extend`,
+      `${API_BASE_URL}/users/razorpay/subscription/extend`,
       {
         method: "POST",
         credentials: "include",
@@ -492,8 +504,8 @@ export const AuthProvider = ({ children }) => {
           "x-user-email": user.email || "",
         },
         body: JSON.stringify({
-          priceId: currentPlan.priceId,
-          planId: currentPlan.id,
+          priceId: gatewayPlanId,
+          planId: gatewayPlanId,
           subscriptionPlanId: currentPlan.id,
         }),
       },
@@ -504,7 +516,7 @@ export const AuthProvider = ({ children }) => {
       // Some backends do not implement a direct extend endpoint and only support checkout sessions.
       if (response.status === 404 || response.status === 405) {
         const checkoutResponse = await fetch(
-          `${API_BASE_URL}/users/stripe/create-checkout-session`,
+          `${API_BASE_URL}/users/razorpay/create-checkout-session`,
           {
             method: "POST",
             credentials: "include",
@@ -515,8 +527,8 @@ export const AuthProvider = ({ children }) => {
               "x-user-email": user.email || "",
             },
             body: JSON.stringify({
-              priceId: currentPlan.priceId,
-              planId: currentPlan.id,
+              priceId: gatewayPlanId,
+              planId: gatewayPlanId,
               subscriptionPlanId: currentPlan.id,
             }),
           },
@@ -529,7 +541,7 @@ export const AuthProvider = ({ children }) => {
             checkoutUrl: checkoutPayload.url,
             message:
               checkoutPayload?.message ||
-              "Redirecting to Stripe checkout to extend your subscription",
+              "Redirecting to checkout to extend your subscription",
           };
         }
       }
@@ -546,6 +558,11 @@ export const AuthProvider = ({ children }) => {
     if (subscriptionDetails) {
       updateSubscriptionDetails(user.id, subscriptionDetails);
     }
+
+    // Refresh page after successful extension to load updated subscription data
+    setTimeout(() => {
+      window.location.reload();
+    }, 1500);
 
     return {
       success: true,
