@@ -211,8 +211,9 @@ const AdminUsers = () => {
 
   const expandedUser = useMemo(
     () =>
-      visibleUsers.find((entry) => String(entry?._id) === String(expandedUserId)) ||
-      null,
+      visibleUsers.find(
+        (entry) => String(entry?._id) === String(expandedUserId),
+      ) || null,
     [expandedUserId, visibleUsers],
   );
 
@@ -333,7 +334,9 @@ const AdminUsers = () => {
                         handleEditUser(entry);
                       }}
                     >
-                      {isUpdatingUserId === String(entry._id) ? "Saving..." : "Edit"}
+                      {isUpdatingUserId === String(entry._id)
+                        ? "Saving..."
+                        : "Edit"}
                     </Button>
                     <Button
                       size="sm"
@@ -359,7 +362,9 @@ const AdminUsers = () => {
                         {displayName}
                       </p>
                       <p className="text-foreground">
-                        <span className="text-muted-foreground">Username: </span>
+                        <span className="text-muted-foreground">
+                          Username:{" "}
+                        </span>
                         {entry.username || "-"}
                       </p>
                       <p className="text-foreground">

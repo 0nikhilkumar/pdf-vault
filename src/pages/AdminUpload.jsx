@@ -184,7 +184,9 @@ const AdminUpload = () => {
           <Upload className="h-8 w-8 text-muted-foreground mx-auto mb-2" />
           <p className="text-sm text-muted-foreground">Upload a new PDF</p>
           {pdfFile && (
-            <p className="text-xs text-foreground mt-2 truncate">{pdfFile.name}</p>
+            <p className="text-xs text-foreground mt-2 truncate">
+              {pdfFile.name}
+            </p>
           )}
         </label>
         <div className="space-y-3">
