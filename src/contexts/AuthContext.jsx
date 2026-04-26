@@ -2,45 +2,60 @@ import { createContext, useContext, useEffect, useState } from "react";
 
 const AuthContext = createContext(null);
 const API_BASE_URL = "http://localhost:3000/api";
-const RAZORPAY_BASIC_PLAN_ID =
-  import.meta.env.VITE_RAZORPAY_BASIC_PLAN_ID || "plan_Sgt0wTPzSnBF7S";
-const RAZORPAY_PREMIUM_PLAN_ID =
-  import.meta.env.VITE_RAZORPAY_PREMIUM_PLAN_ID || "plan_Sgt0cmJPpcRc2t";
-
-const SUBSCRIPTION_PLANS = [
-  {
-    id: "basic",
-    name: "Basic Plan",
-    priceInr: 199,
-    priceLabel: "Rs 199/month",
-    priceId: RAZORPAY_BASIC_PLAN_ID,
-    features: [
-      "Read PDFs inside secure viewer",
-      "Upload your own PDFs",
-      "Download option remains disabled",
-      "No access without active subscription",
-    ],
-  },
-  {
-    id: "premium",
-    name: "Premium Plan",
-    priceInr: 299,
-    priceLabel: "Rs 299/month",
-    priceId: RAZORPAY_PREMIUM_PLAN_ID,
-    features: [
-      "Read PDFs inside secure viewer",
-      "Upload your own PDFs",
-      "Download option enabled",
-      "No access without active subscription",
-    ],
-  },
-];
 
 const STORAGE_KEYS = {
   user: "docvault.auth.user",
   users: "docvault.auth.users",
   accessToken: "docvault.auth.accessToken",
   refreshToken: "docvault.auth.refreshToken",
+};
+
+const splitFeatures = (description = "") =>
+  String(description)
+    .split("\n")
+    .map((line) => line.replace(/^[-*•]\s*/, "").trim())
+    .filter(Boolean);
+
+const toPlanTitle = (value) => {
+  const text = String(value || "").trim();
+  if (!text) return "Plan";
+  return `${text.charAt(0).toUpperCase()}${text.slice(1)}`;
+};
+
+const normalizeSubscriptionPlan = (rawPlan, index = 0) => {
+  const planType = String(rawPlan?.planType || "")
+    .trim()
+    .toLowerCase();
+  const price = Number(rawPlan?.price ?? 0);
+  const month = Number(rawPlan?.month ?? 1);
+  const safePrice = Number.isFinite(price) ? price : 0;
+  const safeMonth = Number.isInteger(month) && month > 0 ? month : 1;
+  const description = String(rawPlan?.description || "").trim();
+  const features = splitFeatures(description);
+
+  return {
+    id:
+      String(rawPlan?._id || "").trim() ||
+      String(rawPlan?.id || "").trim() ||
+      `${planType || "plan"}-${safeMonth}-${safePrice}-${index}`,
+    planType,
+    name: rawPlan?.name || `${toPlanTitle(planType)} Plan`,
+    priceInr: safePrice,
+    priceLabel:
+      safeMonth > 1
+        ? `Rs ${safePrice}/${safeMonth} months`
+        : `Rs ${safePrice}/month`,
+    priceId: String(
+      rawPlan?.priceId ||
+        rawPlan?.razorpayPlanId ||
+        rawPlan?.gatewayPlanId ||
+        rawPlan?.planId ||
+        "",
+    ).trim(),
+    month: safeMonth,
+    description,
+    features,
+  };
 };
 
 const normalizePlanId = (planValue, fallback = "basic") => {
@@ -60,14 +75,6 @@ const normalizePlanId = (planValue, fallback = "basic") => {
   ) {
     return "premium";
   }
-
-  const planById = SUBSCRIPTION_PLANS.find((plan) => plan.id === normalized);
-  if (planById) return planById.id;
-
-  const planByPriceId = SUBSCRIPTION_PLANS.find(
-    (plan) => plan.priceId.toLowerCase() === normalized,
-  );
-  if (planByPriceId) return planByPriceId.id;
 
   return fallback;
 };
@@ -163,6 +170,9 @@ export const AuthProvider = ({ children }) => {
   const [refreshToken, setRefreshToken] = useState(() =>
     readStorage(STORAGE_KEYS.refreshToken, ""),
   );
+  const [subscriptionPlans, setSubscriptionPlans] = useState([]);
+  const [isLoadingSubscriptionPlans, setIsLoadingSubscriptionPlans] =
+    useState(true);
 
   // Sync state to sessionStorage
   useEffect(() => {
@@ -192,6 +202,67 @@ export const AuthProvider = ({ children }) => {
       sessionStorage.removeItem(STORAGE_KEYS.refreshToken);
     }
   }, [refreshToken]);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const loadSubscriptionPlans = async () => {
+      if (!accessToken) {
+        if (isMounted) {
+          setSubscriptionPlans([]);
+          setIsLoadingSubscriptionPlans(false);
+        }
+        return;
+      }
+
+      try {
+        setIsLoadingSubscriptionPlans(true);
+        const response = await fetch(
+          `${API_BASE_URL}/users/subscription/plans`,
+          {
+            method: "GET",
+            credentials: "include",
+            headers: authHeaders(),
+          },
+        );
+        const payload = await parseApiResponse(response);
+
+        if (!response.ok) {
+          throw new Error(
+            payload?.message || "Unable to load subscription plans",
+          );
+        }
+
+        const rawPlans = Array.isArray(payload?.plans)
+          ? payload.plans
+          : Array.isArray(payload?.subscriptionPlans)
+            ? payload.subscriptionPlans
+            : [];
+
+        const normalizedPlans = rawPlans
+          .filter(Boolean)
+          .map((entry, index) => normalizeSubscriptionPlan(entry, index));
+
+        if (isMounted) {
+          setSubscriptionPlans(normalizedPlans);
+        }
+      } catch {
+        if (isMounted) {
+          setSubscriptionPlans([]);
+        }
+      } finally {
+        if (isMounted) {
+          setIsLoadingSubscriptionPlans(false);
+        }
+      }
+    };
+
+    loadSubscriptionPlans();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [accessToken]);
 
   const authHeaders = (headers = {}) => {
     if (!accessToken) return headers;
@@ -473,9 +544,13 @@ export const AuthProvider = ({ children }) => {
     }
 
     // Get the current plan to send the priceId
-    const currentPlan = SUBSCRIPTION_PLANS.find(
-      (plan) => plan.id === user?.subscriptionPlanId,
-    );
+    const currentPlan =
+      subscriptionPlans.find((plan) => plan.id === user?.subscriptionPlanId) ||
+      subscriptionPlans.find(
+        (plan) =>
+          plan.planType ===
+          String(user?.subscriptionPlanId || "").toLowerCase(),
+      );
 
     if (!currentPlan) {
       return {
@@ -571,9 +646,14 @@ export const AuthProvider = ({ children }) => {
     };
   };
 
-  const selectedSubscriptionPlan = SUBSCRIPTION_PLANS.find(
-    (plan) => plan.id === normalizePlanId(user?.subscriptionPlanId, "basic"),
-  );
+  const selectedSubscriptionPlan =
+    subscriptionPlans.find(
+      (plan) =>
+        plan.id === normalizePlanId(user?.subscriptionPlanId, "") ||
+        plan.planType === normalizePlanId(user?.subscriptionPlanId, ""),
+    ) ||
+    subscriptionPlans[0] ||
+    null;
 
   return (
     <AuthContext.Provider
@@ -587,10 +667,10 @@ export const AuthProvider = ({ children }) => {
         allUsers: users,
         updateSubscriptionDetails,
         extendCurrentSubscription,
-        subscriptionPlans: SUBSCRIPTION_PLANS,
-        selectedSubscriptionPlan:
-          selectedSubscriptionPlan || SUBSCRIPTION_PLANS[0],
-        subscriptionPlan: selectedSubscriptionPlan || SUBSCRIPTION_PLANS[0],
+        subscriptionPlans,
+        isLoadingSubscriptionPlans,
+        selectedSubscriptionPlan,
+        subscriptionPlan: selectedSubscriptionPlan,
       }}
     >
       {children}

@@ -177,16 +177,23 @@ const AdminUpload = () => {
         animate={{ opacity: 1, y: 0 }}
         className="glass rounded-xl p-8 mb-8 max-w-lg"
       >
-        <div className="border-2 border-dashed border-border rounded-lg p-6 text-center mb-4 hover:border-primary/50 transition-colors">
+        <label
+          htmlFor="admin-pdf-upload"
+          className="block border-2 border-dashed border-border rounded-lg p-6 text-center mb-4 hover:border-primary/50 transition-colors cursor-pointer"
+        >
           <Upload className="h-8 w-8 text-muted-foreground mx-auto mb-2" />
           <p className="text-sm text-muted-foreground">Upload a new PDF</p>
-        </div>
+          {pdfFile && (
+            <p className="text-xs text-foreground mt-2 truncate">{pdfFile.name}</p>
+          )}
+        </label>
         <div className="space-y-3">
           <Input
+            id="admin-pdf-upload"
             type="file"
             accept="application/pdf"
             onChange={(event) => setPdfFile(event.target.files?.[0] || null)}
-            className="h-11"
+            className="hidden"
           />
           <Input
             placeholder="Title"

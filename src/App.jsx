@@ -10,6 +10,8 @@ import UserUpload from "./pages/UserUpload";
 import AdminDashboard from "./pages/AdminDashboard";
 import AdminUsers from "./pages/AdminUsers";
 import AdminUpload from "./pages/AdminUpload";
+import AdminPlans from "./pages/AdminPlans";
+import AdminGiveSubscription from "./pages/AdminGiveSubscription";
 import NotFound from "./pages/NotFound";
 import SubscriptionBuy from "./pages/SubscriptionBuy";
 import SubscriptionSuccess from "./pages/SubscriptionSuccess";
@@ -152,6 +154,22 @@ const App = () => {
               element={
                 <ProtectedRoute role="admin">
                   <AdminUpload />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/admin/subscription-plans"
+              element={
+                <ProtectedRoute role="admin">
+                  <AdminPlans />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/admin/give-subscription"
+              element={
+                <ProtectedRoute role="admin">
+                  <AdminGiveSubscription />
                 </ProtectedRoute>
               }
             />

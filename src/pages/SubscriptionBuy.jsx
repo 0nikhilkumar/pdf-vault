@@ -6,7 +6,7 @@ import {
   RefreshCw,
   XCircle,
 } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Layout from "@/components/Layout";
 import { Button } from "@/components/ui/button";
@@ -21,6 +21,87 @@ const RAZORPAY_SCRIPT_URL = "https://checkout.razorpay.com/v1/checkout.js";
 
 const getCheckoutRedirectUrl = (payload) =>
   payload?.url || payload?.checkoutUrl || payload?.short_url || null;
+
+const parseJsonSafely = async (response) => {
+  const text = await response.text();
+  if (!text) return null;
+
+  try {
+    return JSON.parse(text);
+  } catch {
+    return null;
+  }
+};
+
+const getVerificationCandidates = (checkoutPayload) => {
+  const customCandidates = [
+    checkoutPayload?.verify_url,
+    checkoutPayload?.verifyUrl,
+    checkoutPayload?.verification_url,
+    checkoutPayload?.verificationUrl,
+    checkoutPayload?.callback_url,
+    checkoutPayload?.callbackUrl,
+  ].filter(Boolean);
+
+  return [...customCandidates, `${RAZORPAY_BASE_PATH}/verify-payment`];
+};
+
+const verifyPaymentOnBackend = async ({
+  checkoutPayload,
+  paymentPayload,
+  plan,
+  accessToken,
+  user,
+}) => {
+  const payload = {
+    razorpay_payment_id: paymentPayload?.razorpay_payment_id,
+    razorpay_order_id: paymentPayload?.razorpay_order_id,
+    razorpay_signature: paymentPayload?.razorpay_signature,
+    paymentId: paymentPayload?.razorpay_payment_id,
+    orderId: paymentPayload?.razorpay_order_id,
+    signature: paymentPayload?.razorpay_signature,
+    planId: plan?.id,
+    subscriptionPlanId: plan?.id,
+    priceId: plan?.priceId,
+    amount: checkoutPayload?.amount,
+    currency: checkoutPayload?.currency,
+    userId: user?.id,
+  };
+
+  const candidates = getVerificationCandidates(checkoutPayload);
+  let lastError = "Unable to verify payment";
+
+  for (const endpoint of candidates) {
+    try {
+      const response = await fetch(endpoint, {
+        method: "POST",
+        credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+          ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+        },
+        body: JSON.stringify(payload),
+      });
+
+      const data = await parseJsonSafely(response);
+      if (response.ok) {
+        return data || { verified: true };
+      }
+
+      if (response.status === 404 || response.status === 405) {
+        continue;
+      }
+
+      lastError =
+        data?.message || `Verification failed (HTTP ${response.status})`;
+      throw new Error(lastError);
+    } catch (error) {
+      lastError = error?.message || lastError;
+    }
+  }
+
+  throw new Error(lastError);
+};
 
 const loadRazorpayScript = () => {
   if (window.Razorpay) return Promise.resolve(true);
@@ -46,14 +127,28 @@ const loadRazorpayScript = () => {
 };
 
 const SubscriptionBuy = () => {
-  const { user, accessToken, subscriptionPlans, subscriptionPlan } = useAuth();
+  const {
+    user,
+    accessToken,
+    subscriptionPlans,
+    subscriptionPlan,
+    isLoadingSubscriptionPlans,
+  } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
   const [selectedPlanId, setSelectedPlanId] = useState(
-    subscriptionPlan?.id || subscriptionPlans[0].id,
+    subscriptionPlan?.id || subscriptionPlans[0]?.id || "",
   );
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [subscriptionData, setSubscriptionData] = useState(null);
+
+  useEffect(() => {
+    if (!subscriptionPlans.length) return;
+    setSelectedPlanId((prev) => {
+      if (subscriptionPlans.some((plan) => plan.id === prev)) return prev;
+      return subscriptionPlan?.id || subscriptionPlans[0]?.id || "";
+    });
+  }, [subscriptionPlan?.id, subscriptionPlans]);
 
   const currentPlanId =
     subscriptionData?.planId ||
@@ -62,7 +157,11 @@ const SubscriptionBuy = () => {
 
   const selectedPlan =
     subscriptionPlans.find((plan) => plan.id === selectedPlanId) ||
-    subscriptionPlans[0];
+    subscriptionPlans[0] ||
+    null;
+
+  const currentPlanLabel =
+    subscriptionPlan?.priceLabel || selectedPlan?.priceLabel || "-";
 
   const subscriptionExpiry = useMemo(() => {
     return (
@@ -87,9 +186,9 @@ const SubscriptionBuy = () => {
 
     return plansFromState.filter(Boolean).map((entry) => {
       const planType = String(entry.subscriptionType || "").toLowerCase();
-      const matchedPlan = subscriptionPlans.find(
-        (plan) => plan.id === planType,
-      );
+      const matchedPlan =
+        subscriptionPlans.find((plan) => plan.id === planType) ||
+        subscriptionPlans.find((plan) => plan.planType === planType);
 
       return {
         id: entry.id || `${planType}-${entry.startDate || entry.expiryDate}`,
@@ -114,13 +213,10 @@ const SubscriptionBuy = () => {
         if (!accessToken) {
           throw new Error("Please log in again to continue checkout");
         }
-        if (!plan?.priceId) {
-          throw new Error("Selected plan is missing payment plan ID");
+        if (!plan?.id && !plan?.priceId) {
+          throw new Error("Selected plan information is missing");
         }
-        const gatewayPlanId = String(plan.priceId).trim();
-        if (!gatewayPlanId.startsWith("plan_")) {
-          throw new Error("Invalid Razorpay plan ID configured");
-        }
+        const gatewayPlanId = String(plan?.priceId || "").trim();
 
         const response = await fetch(
           `${RAZORPAY_BASE_PATH}/create-checkout-session`,
@@ -132,8 +228,8 @@ const SubscriptionBuy = () => {
               Authorization: `Bearer ${accessToken}`,
             },
             body: JSON.stringify({
-              priceId: gatewayPlanId,
-              planId: gatewayPlanId,
+              ...(gatewayPlanId ? { priceId: gatewayPlanId } : {}),
+              planId: plan?.id || gatewayPlanId,
               subscriptionPlanId: plan.id,
             }),
           },
@@ -153,8 +249,6 @@ const SubscriptionBuy = () => {
               `Unable to start payment checkout (HTTP ${response.status})`,
           );
         }
-
-        console.log("🔵 Backend Response:", data);
 
         const orderId = data?.order_id || data?.orderId || data?.order?.id;
         const subscriptionId =
@@ -190,14 +284,6 @@ const SubscriptionBuy = () => {
           );
         }
 
-        console.log(
-          "🟢 Razorpay Key Mode:",
-          key.includes("test") ? "TEST MODE ✓" : "LIVE MODE ⚠️",
-        );
-        console.log("🟢 Order ID:", orderId);
-        console.log("🟢 Currency:", data?.currency || "INR");
-        console.log("🟢 Method Config from Backend:", data?.method);
-
         const amount = Number(data?.amount ?? data?.order?.amount ?? 0);
         const options = {
           key,
@@ -205,7 +291,7 @@ const SubscriptionBuy = () => {
           currency: data?.currency || data?.order?.currency || "INR",
           method: data?.method || {},
           name: "Secure PDF Vault",
-          description: `${plan.name} subscription`,
+          description: `${plan.name} payment`,
           order_id: orderId,
           subscription_id: subscriptionId,
           callback_url: data?.callback_url || data?.callbackUrl,
@@ -217,8 +303,37 @@ const SubscriptionBuy = () => {
           theme: {
             color: "#0ea5e9",
           },
-          handler: () => {
-            window.location.href = "/subscription/success";
+          handler: async (paymentPayload) => {
+            try {
+              const verification = await verifyPaymentOnBackend({
+                checkoutPayload: data,
+                paymentPayload,
+                plan,
+                accessToken,
+                user,
+              });
+
+              if (verification?.subscription || verification?.payment) {
+                setSubscriptionData(
+                  verification?.subscription || verification?.payment,
+                );
+              }
+
+              toast({
+                title: "Payment verified",
+                description:
+                  verification?.message || "Payment verified successfully",
+              });
+
+              navigate("/subscription/success", { replace: true });
+            } catch (error) {
+              toast({
+                title: "Verification failed",
+                description:
+                  error?.message || "Payment captured but verification failed",
+                variant: "destructive",
+              });
+            }
           },
           modal: {
             ondismiss: () => {
@@ -230,8 +345,6 @@ const SubscriptionBuy = () => {
             },
           },
         };
-
-        console.log("📋 Razorpay Checkout Options:", options);
 
         const checkout = new window.Razorpay(options);
         checkout.on("payment.failed", (failureResponse) => {
@@ -281,7 +394,7 @@ const SubscriptionBuy = () => {
               </p>
             </div>
             <div className="px-4 py-2 rounded-full bg-primary/10 text-primary text-sm font-semibold">
-              Selected: {selectedPlan.priceLabel}
+              Selected: {selectedPlan?.priceLabel || "-"}
             </div>
           </div>
 
@@ -292,7 +405,7 @@ const SubscriptionBuy = () => {
                   Current plan
                 </span>
                 <span className="text-sm font-medium text-foreground">
-                  {subscriptionPlan.priceLabel}
+                  {currentPlanLabel}
                 </span>
               </div>
               <div className="flex items-center justify-between gap-4">
@@ -335,74 +448,89 @@ const SubscriptionBuy = () => {
           )}
 
           <div className="grid md:grid-cols-2 gap-6 mb-8">
-            {subscriptionPlans.map((plan) => {
-              const isSelected = selectedPlanId === plan.id;
-              const isCurrentPlan = currentPlanId === plan.id;
+            {isLoadingSubscriptionPlans && (
+              <div className="rounded-xl border border-border p-6 bg-card text-sm text-muted-foreground md:col-span-2">
+                Loading available plans...
+              </div>
+            )}
 
-              return (
-                <div
-                  key={plan.id}
-                  className={`rounded-xl border p-6 bg-card transition-colors ${
-                    isSelected ? "border-primary" : "border-border"
-                  }`}
-                >
-                  <div className="flex items-center justify-between gap-3 mb-4">
-                    <div className="flex items-center gap-2 text-foreground font-semibold">
-                      <CreditCard className="h-5 w-5 text-primary" />
-                      {plan.name}
-                    </div>
-                    {isSelected && (
-                      <span className="text-xs px-2 py-1 rounded-full bg-primary/10 text-primary">
-                        Selected
-                      </span>
-                    )}
-                  </div>
+            {!isLoadingSubscriptionPlans && subscriptionPlans.length === 0 && (
+              <div className="rounded-xl border border-border p-6 bg-card text-sm text-muted-foreground md:col-span-2">
+                No subscription plans available right now.
+              </div>
+            )}
 
-                  <p className="text-3xl font-bold text-foreground mb-4">
-                    {plan.priceLabel}
-                  </p>
+            {!isLoadingSubscriptionPlans &&
+              subscriptionPlans.map((plan) => {
+                const isSelected = selectedPlanId === plan.id;
+                const isCurrentPlan =
+                  currentPlanId === plan.id ||
+                  String(currentPlanId || "").toLowerCase() === plan.planType;
 
-                  <div className="space-y-2 mb-5">
-                    {plan.features.map((feature) => (
-                      <div
-                        key={`${plan.id}-${feature}`}
-                        className="flex items-center gap-2 text-sm text-foreground"
-                      >
-                        {feature.toLowerCase().includes("disabled") ? (
-                          <Lock className="h-4 w-4 text-primary" />
-                        ) : feature.toLowerCase().includes("no access") ? (
-                          <XCircle className="h-4 w-4 text-muted-foreground" />
-                        ) : (
-                          <CheckCircle2 className="h-4 w-4 text-accent" />
-                        )}
-                        {feature}
-                      </div>
-                    ))}
-                  </div>
-
-                  <Button
-                    className="w-full h-11"
-                    variant={isSelected ? "default" : "outline"}
-                    onClick={() => {
-                      setSelectedPlanId(plan.id);
-                      handlePurchase(plan);
-                    }}
-                    disabled={isSubmitting}
+                return (
+                  <div
+                    key={plan.id}
+                    className={`rounded-xl border p-6 bg-card transition-colors ${
+                      isSelected ? "border-primary" : "border-border"
+                    }`}
                   >
-                    {user?.hasSubscription && isCurrentPlan ? (
-                      <>
-                        <RefreshCw className="h-4 w-4 mr-2" />
-                        {isSubmitting ? "Redirecting..." : "Extend"}
-                      </>
-                    ) : isSubmitting && isSelected ? (
-                      "Redirecting..."
-                    ) : (
-                      "Buy"
-                    )}
-                  </Button>
-                </div>
-              );
-            })}
+                    <div className="flex items-center justify-between gap-3 mb-4">
+                      <div className="flex items-center gap-2 text-foreground font-semibold">
+                        <CreditCard className="h-5 w-5 text-primary" />
+                        {plan.name}
+                      </div>
+                      {isSelected && (
+                        <span className="text-xs px-2 py-1 rounded-full bg-primary/10 text-primary">
+                          Selected
+                        </span>
+                      )}
+                    </div>
+
+                    <p className="text-3xl font-bold text-foreground mb-4">
+                      {plan.priceLabel}
+                    </p>
+
+                    <div className="space-y-2 mb-5">
+                      {plan.features.map((feature) => (
+                        <div
+                          key={`${plan.id}-${feature}`}
+                          className="flex items-center gap-2 text-sm text-foreground"
+                        >
+                          {feature.toLowerCase().includes("disabled") ? (
+                            <Lock className="h-4 w-4 text-primary" />
+                          ) : feature.toLowerCase().includes("no access") ? (
+                            <XCircle className="h-4 w-4 text-muted-foreground" />
+                          ) : (
+                            <CheckCircle2 className="h-4 w-4 text-accent" />
+                          )}
+                          {feature}
+                        </div>
+                      ))}
+                    </div>
+
+                    <Button
+                      className="w-full h-11"
+                      variant={isSelected ? "default" : "outline"}
+                      onClick={() => {
+                        setSelectedPlanId(plan.id);
+                        handlePurchase(plan);
+                      }}
+                      disabled={isSubmitting}
+                    >
+                      {user?.hasSubscription && isCurrentPlan ? (
+                        <>
+                          <RefreshCw className="h-4 w-4 mr-2" />
+                          {isSubmitting ? "Redirecting..." : "Extend"}
+                        </>
+                      ) : isSubmitting && isSelected ? (
+                        "Redirecting..."
+                      ) : (
+                        "Buy"
+                      )}
+                    </Button>
+                  </div>
+                );
+              })}
           </div>
 
           <div className="flex flex-wrap gap-3">

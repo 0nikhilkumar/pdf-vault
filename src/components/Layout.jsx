@@ -40,6 +40,16 @@ const getSidebarItems = (isAdmin) => {
         label: "Subscribed Users",
         icon: Crown,
       },
+      {
+        path: "/admin/subscription-plans",
+        label: "Subscription Plans",
+        icon: Crown,
+      },
+      {
+        path: "/admin/give-subscription",
+        label: "Give Subscription",
+        icon: Crown,
+      },
       { path: "/admin/upload", label: "Upload PDF", icon: Upload },
     ];
   }
