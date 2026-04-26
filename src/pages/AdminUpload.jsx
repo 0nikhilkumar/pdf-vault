@@ -1,6 +1,15 @@
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
-import { Check, FileText, Lock, Pencil, Unlock, Upload, X } from "lucide-react";
+import {
+  Check,
+  FileText,
+  Lock,
+  Pencil,
+  Trash2,
+  Unlock,
+  Upload,
+  X,
+} from "lucide-react";
 import Layout from "@/components/Layout";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
@@ -33,6 +42,7 @@ const AdminUpload = () => {
   const [editDescription, setEditDescription] = useState("");
   const [editLocked, setEditLocked] = useState(false);
   const [isSavingEdit, setIsSavingEdit] = useState(false);
+  const [isDeletingPdfId, setIsDeletingPdfId] = useState("");
 
   const loadPdfs = async () => {
     try {
@@ -158,6 +168,48 @@ const AdminUpload = () => {
       await loadPdfs();
     } finally {
       setIsSavingEdit(false);
+    }
+  };
+
+  const handleDeletePdf = async (pdfId) => {
+    if (!pdfId) return;
+
+    const confirmDelete = window.confirm(
+      "Are you sure you want to delete this PDF?",
+    );
+    if (!confirmDelete) return;
+
+    try {
+      setIsDeletingPdfId(String(pdfId));
+      const response = await fetch(
+        buildApiUrl(`/admin/pdfs/${encodeURIComponent(pdfId)}`),
+        {
+          method: "DELETE",
+          credentials: "include",
+          headers: withAuthHeader(accessToken),
+        },
+      );
+
+      const payload = await parseJsonSafely(response);
+      if (!response.ok) {
+        throw new Error(payload?.message || "Unable to delete PDF");
+      }
+
+      toast({ title: payload?.message || "PDF deleted successfully" });
+
+      if (String(editingPdfId) === String(pdfId)) {
+        cancelEdit();
+      }
+
+      await loadPdfs();
+    } catch (error) {
+      toast({
+        title: "Delete PDF failed",
+        description: error?.message || "Unable to delete PDF",
+        variant: "destructive",
+      });
+    } finally {
+      setIsDeletingPdfId("");
     }
   };
 
@@ -322,8 +374,20 @@ const AdminUpload = () => {
                       variant="ghost"
                       size="sm"
                       onClick={() => startEdit(pdf)}
+                      disabled={isDeletingPdfId === String(pdf._id)}
                     >
                       <Pencil className="h-4 w-4 mr-1" /> Edit
+                    </Button>
+                    <Button
+                      variant="destructive"
+                      size="sm"
+                      onClick={() => handleDeletePdf(pdf._id)}
+                      disabled={isDeletingPdfId === String(pdf._id)}
+                    >
+                      <Trash2 className="h-4 w-4 mr-1" />
+                      {isDeletingPdfId === String(pdf._id)
+                        ? "Deleting..."
+                        : "Delete"}
                     </Button>
                   </div>
                 </div>
