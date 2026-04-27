@@ -94,12 +94,12 @@ const Signup = () => {
     <AuthShell
       headerLabel="Create Account"
       sideIcon={UserPlus}
-      sideTitle="Join DocVault"
+      sideTitle="Join Export Import"
       sideDescription="Create your account to unlock secure PDF reading with a clean, role-based dashboard experience."
       sideHighlights={[
         {
           icon: ShieldCheck,
-          text: "Protected access to your PDF vault",
+          text: "Protected access to your documents",
           iconClassName: "text-primary",
         },
         {
@@ -114,7 +114,7 @@ const Signup = () => {
         <h2 className="text-3xl font-bold text-foreground tracking-tight">
           Create account
         </h2>
-        <p className="text-muted-foreground mt-1">Join DocVault today</p>
+        <p className="text-muted-foreground mt-1">Join Export Import today</p>
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-5">

@@ -65,7 +65,7 @@ const Login = () => {
     <AuthShell
       headerLabel="Secure Sign In"
       sideIcon={FileText}
-      sideTitle="DocVault"
+      sideTitle="Export Import"
       sideDescription="Enter your credentials to access your protected PDF dashboard. Read files securely with controlled access."
       sideHighlights={[
         {

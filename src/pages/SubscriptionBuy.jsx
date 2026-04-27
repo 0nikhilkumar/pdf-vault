@@ -290,7 +290,7 @@ const SubscriptionBuy = () => {
           amount: Number.isFinite(amount) && amount > 0 ? amount : undefined,
           currency: data?.currency || data?.order?.currency || "INR",
           method: data?.method || {},
-          name: "Secure PDF Vault",
+          name: "Export Import",
           description: `${plan.name} payment`,
           order_id: orderId,
           subscription_id: subscriptionId,

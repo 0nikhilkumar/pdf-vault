@@ -12,6 +12,8 @@ import {
   Upload,
   UserCircle,
   Users,
+  Menu,
+  X,
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
@@ -112,10 +114,27 @@ const Layout = ({ children }) => {
   const location = useLocation();
   const navigate = useNavigate();
   const [isDarkMode, setIsDarkMode] = useState(true);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
 
   useEffect(() => {
     document.documentElement.classList.toggle("dark", isDarkMode);
   }, [isDarkMode]);
+
+  // Close menu when route changes
+  useEffect(() => {
+    setIsMobileMenuOpen(false);
+  }, [location]);
+
+  // Track screen size changes
+  useEffect(() => {
+    const handleResize = () => {
+      setIsMobile(window.innerWidth < 768);
+    };
+
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
 
   const isAdmin = user?.role === "admin";
   const navItems = getSidebarItems(isAdmin);
@@ -126,19 +145,56 @@ const Layout = ({ children }) => {
   };
 
   return (
-    <div className="min-h-screen flex bg-background">
+    <div className="min-h-screen flex flex-col md:flex-row bg-background">
+      {/* Mobile Header */}
+      <div className="md:hidden sticky top-0 z-40 border-b border-border bg-card px-4 py-3">
+        <div className="flex items-center justify-between">
+          <Link to="/" className="flex items-center gap-2">
+            <div className="h-8 w-8 rounded-lg bg-primary flex items-center justify-center glow-primary">
+              <FileText className="h-4 w-4 text-primary-foreground" />
+            </div>
+            <span className="text-base font-bold text-foreground">
+              Export Import
+            </span>
+          </Link>
+          <button
+            onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+            className="p-2 hover:bg-muted rounded-lg transition-colors"
+          >
+            {isMobileMenuOpen ? (
+              <X className="h-5 w-5" />
+            ) : (
+              <Menu className="h-5 w-5" />
+            )}
+          </button>
+        </div>
+      </div>
+
+      {/* Mobile Menu Overlay */}
+      {isMobileMenuOpen && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          className="md:hidden fixed inset-0 bg-background/80 backdrop-blur z-30"
+          onClick={() => setIsMobileMenuOpen(false)}
+        />
+      )}
+
+      {/* Sidebar */}
       <motion.aside
-        initial={{ x: -280 }}
-        animate={{ x: 0 }}
-        className="w-64 border-r border-border bg-card flex flex-col fixed h-screen z-30"
+        initial={false}
+        animate={isMobile ? { x: isMobileMenuOpen ? 0 : "-100%" } : { x: 0 }}
+        transition={{ type: "spring", stiffness: 300, damping: 30 }}
+        className="md:translate-x-0 fixed md:static w-64 border-r border-border bg-card flex flex-col h-screen md:h-auto z-40 md:z-auto"
       >
-        <div className="p-6 border-b border-border">
+        <div className="p-6 border-b border-border hidden md:block">
           <Link to="/" className="flex items-center gap-3">
             <div className="h-9 w-9 rounded-lg bg-primary flex items-center justify-center glow-primary">
               <FileText className="h-5 w-5 text-primary-foreground" />
             </div>
             <span className="text-lg font-bold text-foreground tracking-tight">
-              DocVault
+              Export Import
             </span>
           </Link>
         </div>
@@ -177,9 +233,10 @@ const Layout = ({ children }) => {
         </div>
       </motion.aside>
 
-      <main className="flex-1 ml-64">
-        <div className="sticky top-0 z-20 border-b border-border bg-background/80 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-          <div className="flex items-center justify-between gap-4 px-8 py-4">
+      {/* Main Content */}
+      <main className="flex-1 w-full md:min-h-screen flex flex-col">
+        <div className="sticky top-0 md:top-0 z-20 border-b border-border bg-background/80 backdrop-blur supports-[backdrop-filter]:bg-background/60 hidden md:block">
+          <div className="flex items-center justify-between gap-4 px-4 md:px-8 py-3 md:py-4">
             <Link
               to="/"
               className="inline-flex items-center gap-2 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
@@ -201,7 +258,7 @@ const Layout = ({ children }) => {
           initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.3 }}
-          className="p-8"
+          className="flex-1 p-4 md:p-6 lg:p-8"
         >
           {children}
         </motion.div>

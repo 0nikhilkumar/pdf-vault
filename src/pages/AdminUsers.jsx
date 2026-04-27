@@ -219,38 +219,38 @@ const AdminUsers = () => {
 
   return (
     <Layout>
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold text-foreground tracking-tight">
+      <div className="mb-6 md:mb-8">
+        <h1 className="text-2xl md:text-3xl font-bold text-foreground tracking-tight">
           {isSubscribedPage ? "Subscribed Users" : "Registered Users"}
         </h1>
-        <p className="text-muted-foreground mt-1">
+        <p className="text-sm md:text-base text-muted-foreground mt-1">
           {isSubscribedPage
             ? "Subscribed users list"
             : "Only registered users with edit and delete actions"}
         </p>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mb-6">
-        <div className="glass rounded-xl p-5">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 md:gap-5 mb-4 md:mb-6">
+        <div className="glass rounded-xl p-4 md:p-5">
           <p className="text-xs uppercase tracking-wider text-muted-foreground mb-1">
             Total Users
           </p>
-          <p className="text-2xl font-bold text-foreground">
+          <p className="text-xl md:text-2xl font-bold text-foreground">
             {visibleUsers.length}
           </p>
         </div>
-        <div className="glass rounded-xl p-5">
+        <div className="glass rounded-xl p-4 md:p-5">
           <p className="text-xs uppercase tracking-wider text-muted-foreground mb-1">
             Subscribed Users
           </p>
-          <p className="text-2xl font-bold text-foreground">
+          <p className="text-xl md:text-2xl font-bold text-foreground">
             {subscribedUsers.length}
           </p>
         </div>
       </div>
 
       <div className="glass rounded-xl overflow-hidden">
-        <div className="grid grid-cols-5 gap-4 px-6 py-3 border-b border-border text-xs font-medium text-muted-foreground uppercase tracking-wider">
+        <div className="hidden md:grid md:grid-cols-5 gap-4 px-4 md:px-6 py-3 border-b border-border text-xs font-medium text-muted-foreground uppercase tracking-wider">
           <span>User</span>
           <span>Email</span>
           <span>Joined</span>
@@ -260,17 +260,17 @@ const AdminUsers = () => {
 
         <div className="divide-y divide-border">
           {isLoadingUsers && (
-            <div className="px-6 py-4 text-sm text-muted-foreground">
+            <div className="px-4 md:px-6 py-4 text-sm text-muted-foreground">
               Loading users...
             </div>
           )}
           {!isLoadingUsers && users.length === 0 && (
-            <div className="px-6 py-4 text-sm text-muted-foreground">
+            <div className="px-4 md:px-6 py-4 text-sm text-muted-foreground">
               No users found
             </div>
           )}
           {!isLoadingUsers && isSubscribedPage && visibleUsers.length === 0 && (
-            <div className="px-6 py-4 text-sm text-muted-foreground">
+            <div className="px-4 md:px-6 py-4 text-sm text-muted-foreground">
               No subscribed users found
             </div>
           )}
@@ -288,12 +288,28 @@ const AdminUsers = () => {
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
                   transition={{ delay: index * 0.05 }}
-                  className={`grid grid-cols-5 gap-4 px-6 py-4 items-center hover:bg-muted/30 transition-colors cursor-pointer ${
+                  className={`md:grid md:grid-cols-5 md:gap-4 px-4 md:px-6 py-3 md:py-4 items-start md:items-center hover:bg-muted/30 transition-colors cursor-pointer flex flex-col gap-2 ${
                     isExpanded ? "bg-muted/40" : ""
                   }`}
                   onClick={() => handleSelectUser(entry._id)}
                 >
-                  <div className="flex items-center gap-3">
+                  {/* Mobile View */}
+                  <div className="md:hidden flex items-center gap-3 mb-2">
+                    <div className="h-8 w-8 rounded-full bg-primary/20 flex items-center justify-center text-xs font-bold text-primary">
+                      {displayName.charAt(0)}
+                    </div>
+                    <div>
+                      <span className="text-sm font-medium text-foreground">
+                        {displayName}
+                      </span>
+                      <p className="text-xs text-muted-foreground">
+                        {entry.email}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Desktop View */}
+                  <div className="hidden md:flex md:items-center md:gap-3">
                     <div className="h-8 w-8 rounded-full bg-primary/20 flex items-center justify-center text-xs font-bold text-primary">
                       {displayName.charAt(0)}
                     </div>
@@ -301,13 +317,19 @@ const AdminUsers = () => {
                       {displayName}
                     </span>
                   </div>
-                  <span className="text-sm text-muted-foreground truncate">
+                  <span className="hidden md:inline text-sm text-muted-foreground truncate">
                     {entry.email}
                   </span>
-                  <span className="text-sm text-muted-foreground">
+                  <span className="hidden md:inline text-sm text-muted-foreground">
                     {formatDate(entry.createdAt || Date.now())}
                   </span>
-                  <div>
+                  <div className="md:hidden text-xs text-muted-foreground">
+                    <span className="font-medium text-foreground">
+                      Joined:{" "}
+                    </span>
+                    {formatDate(entry.createdAt || Date.now())}
+                  </div>
+                  <div className="md:hidden">
                     {isSubscribedPage ? (
                       subscribedIdSet.has(String(entry._id)) ? (
                         <span className="inline-flex items-center gap-1 text-xs font-medium text-accent bg-accent/10 px-2 py-1 rounded-full">
@@ -324,7 +346,24 @@ const AdminUsers = () => {
                       </span>
                     )}
                   </div>
-                  <div className="flex items-center gap-2">
+                  <div className="hidden md:block">
+                    {isSubscribedPage ? (
+                      subscribedIdSet.has(String(entry._id)) ? (
+                        <span className="inline-flex items-center gap-1 text-xs font-medium text-accent bg-accent/10 px-2 py-1 rounded-full">
+                          <Crown className="h-3 w-3" /> Pro
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 text-xs font-medium text-muted-foreground bg-muted px-2 py-1 rounded-full">
+                          <User className="h-3 w-3" /> Free
+                        </span>
+                      )
+                    ) : (
+                      <span className="inline-flex items-center gap-1 text-xs font-medium text-muted-foreground bg-muted px-2 py-1 rounded-full">
+                        {String(entry?.role || "user")}
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2 md:gap-1">
                     <Button
                       size="sm"
                       variant="outline"
@@ -333,6 +372,7 @@ const AdminUsers = () => {
                         event.stopPropagation();
                         handleEditUser(entry);
                       }}
+                      className="flex-1 md:flex-none h-8 text-xs"
                     >
                       {isUpdatingUserId === String(entry._id)
                         ? "Saving..."
@@ -346,6 +386,7 @@ const AdminUsers = () => {
                         event.stopPropagation();
                         handleDeleteUser(entry._id);
                       }}
+                      className="flex-1 md:flex-none h-8 text-xs"
                     >
                       {isDeletingUserId === String(entry._id)
                         ? "Deleting..."
@@ -355,8 +396,8 @@ const AdminUsers = () => {
                 </motion.div>
 
                 {isExpanded && (
-                  <div className="px-6 py-4 bg-background/40">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
+                  <div className="px-4 md:px-6 py-3 md:py-4 bg-background/40">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2 md:gap-3 text-xs md:text-sm">
                       <p className="text-foreground">
                         <span className="text-muted-foreground">Name: </span>
                         {displayName}
@@ -389,8 +430,8 @@ const AdminUsers = () => {
       </div>
 
       {expandedUser && (
-        <div className="glass rounded-xl mt-6 p-5">
-          <h2 className="text-sm font-semibold text-foreground mb-2">
+        <div className="glass rounded-xl mt-4 md:mt-6 p-4 md:p-5">
+          <h2 className="text-sm font-semibold text-foreground mb-1 md:mb-2">
             Profile Dropdown
           </h2>
           <p className="text-xs text-muted-foreground">

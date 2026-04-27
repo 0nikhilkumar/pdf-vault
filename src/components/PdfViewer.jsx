@@ -93,7 +93,7 @@ const PdfViewer = ({ pdf, onClose }) => {
               pdf?.fileEndpoint ||
               (fileIdentifier
                 ? buildApiUrl(
-                    `/landing-page/pdf/file/${encodeURIComponent(fileIdentifier)}`,
+                    `/landing-page/pdf/${encodeURIComponent(fileIdentifier)}`,
                   )
                 : ""),
             requiresAuth: false,
@@ -349,19 +349,22 @@ const PdfViewer = ({ pdf, onClose }) => {
       animate={{ opacity: 1 }}
       className="fixed inset-0 z-50 bg-background/95 backdrop-blur-sm flex flex-col"
     >
-      <div className="flex items-center justify-between px-6 py-4 border-b border-border">
-        <div className="flex items-center gap-3">
-          <FileText className="h-5 w-5 text-primary" />
-          <h2 className="font-semibold text-foreground">{pdf.name}</h2>
+      <div className="flex flex-wrap items-center justify-between gap-3 px-3 py-3 sm:px-4 md:px-6 md:py-4 border-b border-border">
+        <div className="flex min-w-0 items-center gap-2 sm:gap-3">
+          <FileText className="h-4 w-4 shrink-0 text-primary sm:h-5 sm:w-5" />
+          <h2 className="max-w-[42vw] truncate text-sm font-semibold text-foreground sm:max-w-[48vw] sm:text-base md:max-w-[40vw]">
+            {pdf.name}
+          </h2>
         </div>
-        <div className="flex items-center gap-4">
-          <div className="flex items-center gap-2">
+        <div className="flex w-full items-center justify-end gap-2 sm:gap-3 md:w-auto md:gap-4">
+          <div className="flex items-center gap-1 sm:gap-2">
             <Button
               variant="outline"
               size="icon"
               onClick={handleZoomOut}
               disabled={zoomLevel <= 0.6}
               title="Zoom out"
+              className="h-8 w-8 sm:h-9 sm:w-9"
             >
               <ZoomOut className="h-4 w-4" />
             </Button>
@@ -370,6 +373,7 @@ const PdfViewer = ({ pdf, onClose }) => {
               size="sm"
               onClick={handleZoomReset}
               title="Reset zoom"
+              className="h-8 min-w-14 px-2 text-xs sm:h-9 sm:min-w-16"
             >
               {Math.round(zoomLevel * 100)}%
             </Button>
@@ -379,6 +383,7 @@ const PdfViewer = ({ pdf, onClose }) => {
               onClick={handleZoomIn}
               disabled={zoomLevel >= 3}
               title="Zoom in"
+              className="h-8 w-8 sm:h-9 sm:w-9"
             >
               <ZoomIn className="h-4 w-4" />
             </Button>
@@ -387,42 +392,53 @@ const PdfViewer = ({ pdf, onClose }) => {
               size="icon"
               onClick={handleRotate}
               title="Rotate page"
+              className="h-8 w-8 sm:h-9 sm:w-9"
             >
               <RotateCw className="h-4 w-4" />
             </Button>
           </div>
           {canDownload && (
-            <Button variant="outline" size="sm" onClick={handleDownload}>
-              <Download className="h-4 w-4 mr-2" />
-              Download
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleDownload}
+              className="h-8 px-2 text-xs sm:h-9 sm:px-3 sm:text-sm"
+            >
+              <Download className="h-4 w-4 sm:mr-2" />
+              <span className="hidden sm:inline">Download</span>
             </Button>
           )}
-          <span className="text-sm text-muted-foreground">
+          <span className="hidden text-sm text-muted-foreground md:inline">
             Page {currentPage} of {totalPages}
           </span>
-          <Button variant="ghost" size="icon" onClick={onClose}>
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={onClose}
+            className="h-8 w-8 sm:h-9 sm:w-9"
+          >
             <X className="h-5 w-5" />
           </Button>
         </div>
       </div>
 
-      <div className="flex-1 overflow-auto flex items-start justify-center p-8">
+      <div className="flex flex-1 items-start justify-center overflow-auto p-3 sm:p-4 md:p-8">
         <div
-          className="no-select w-full max-w-3xl bg-card rounded-lg shadow-2xl border border-border overflow-hidden"
+          className="no-select w-full max-w-3xl overflow-hidden rounded-lg border border-border bg-card shadow-2xl"
           onDragStart={(event) => event.preventDefault()}
         >
           {isLoadingFile ? (
-            <div className="px-6 py-8 text-sm text-muted-foreground">
+            <div className="px-4 py-6 text-sm text-muted-foreground sm:px-6 sm:py-8">
               Loading PDF...
             </div>
           ) : fileLoadError ? (
-            <div className="px-6 py-8 text-sm text-muted-foreground">
+            <div className="px-4 py-6 text-sm text-muted-foreground sm:px-6 sm:py-8">
               {fileLoadError}
             </div>
           ) : (
             <div
               ref={viewportRef}
-              className="bg-muted/30 flex items-center justify-center min-h-[75vh] p-4 overflow-auto"
+              className="relative flex min-h-[55vh] items-center justify-center overflow-auto bg-muted/30 p-2 sm:min-h-[65vh] sm:p-3 md:min-h-[75vh] md:p-4"
               onMouseMove={handlePanMove}
               onMouseUp={handlePanEnd}
               onMouseLeave={handlePanEnd}
@@ -440,7 +456,7 @@ const PdfViewer = ({ pdf, onClose }) => {
                 onMouseDown={handlePanStart}
               />
               {isRenderingPage && (
-                <div className="absolute mt-[-70vh] text-xs text-muted-foreground">
+                <div className="absolute inset-0 flex items-start justify-center pt-4 text-xs text-muted-foreground sm:pt-6">
                   Rendering page...
                 </div>
               )}
@@ -449,16 +465,17 @@ const PdfViewer = ({ pdf, onClose }) => {
         </div>
       </div>
 
-      <div className="flex items-center justify-center gap-4 py-4 border-t border-border">
+      <div className="flex items-center justify-center gap-2 border-t border-border px-2 py-3 sm:gap-3 sm:px-3 sm:py-4">
         <Button
           variant="outline"
           size="icon"
           disabled={currentPage <= 1}
           onClick={() => goToPage(currentPage - 1)}
+          className="h-8 w-8 shrink-0 sm:h-9 sm:w-9"
         >
           <ChevronLeft className="h-4 w-4" />
         </Button>
-        <div className="flex gap-1">
+        <div className="flex max-w-[78vw] gap-1 overflow-x-auto pb-1 sm:max-w-[70vw] md:max-w-none md:overflow-visible md:pb-0">
           {totalPages > 7 && visiblePages[0] > 1 && (
             <>
               <button
@@ -507,6 +524,7 @@ const PdfViewer = ({ pdf, onClose }) => {
           size="icon"
           disabled={currentPage >= totalPages}
           onClick={() => goToPage(currentPage + 1)}
+          className="h-8 w-8 shrink-0 sm:h-9 sm:w-9"
         >
           <ChevronRight className="h-4 w-4" />
         </Button>

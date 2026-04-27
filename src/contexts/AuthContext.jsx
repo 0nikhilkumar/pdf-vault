@@ -1,7 +1,7 @@
 import { createContext, useContext, useEffect, useState } from "react";
+import { API_BASE_URL } from "@/lib/api";
 
 const AuthContext = createContext(null);
-const API_BASE_URL = "http://localhost:3000/api";
 
 const STORAGE_KEYS = {
   user: "docvault.auth.user",
@@ -296,6 +296,46 @@ export const AuthProvider = ({ children }) => {
 
     const userPayload = payload?.user || payload;
     return normalizeUser(userPayload);
+  };
+
+  const updateProfile = async (profileData = {}) => {
+    if (!accessToken || !user?.id) {
+      return {
+        success: false,
+        message: "Please log in again to update your profile",
+      };
+    }
+
+    const response = await fetch(`${API_BASE_URL}/users/profile`, {
+      method: "PATCH",
+      credentials: "include",
+      headers: {
+        "Content-Type": "application/json",
+        ...authHeaders(),
+      },
+      body: JSON.stringify(profileData),
+    });
+
+    const payload = await parseApiResponse(response);
+
+    if (!response.ok) {
+      return {
+        success: false,
+        message: payload?.message || "Unable to update profile",
+      };
+    }
+
+    const updatedUser = normalizeUser(payload?.user);
+    if (updatedUser) {
+      setUser(updatedUser);
+      upsertUser(updatedUser);
+    }
+
+    return {
+      success: true,
+      user: updatedUser,
+      message: payload?.message || "Profile updated successfully",
+    };
   };
 
   const login = async (identifier, password) => {
@@ -664,6 +704,7 @@ export const AuthProvider = ({ children }) => {
         login,
         signup,
         logout,
+        updateProfile,
         allUsers: users,
         updateSubscriptionDetails,
         extendCurrentSubscription,

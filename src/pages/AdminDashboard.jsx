@@ -13,26 +13,28 @@ const StatCard = ({ icon: Icon, label, value, accent, delay, onClick }) => {
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay }}
-      className={`glass rounded-xl p-6 ${accent ? "border-primary/30 glow-primary" : ""} ${
+      className={`glass rounded-xl p-4 md:p-6 ${accent ? "border-primary/30 glow-primary" : ""} ${
         onClick
           ? "cursor-pointer hover:border-primary/40 transition-colors"
           : ""
       }`}
       onClick={onClick}
     >
-      <div className="flex items-center gap-3 mb-3">
+      <div className="flex items-center gap-2 md:gap-3 mb-2 md:mb-3">
         <div
-          className={`h-10 w-10 rounded-lg flex items-center justify-center ${
+          className={`h-9 md:h-10 w-9 md:w-10 rounded-lg flex items-center justify-center flex-shrink-0 ${
             accent
               ? "bg-primary/20 text-primary"
               : "bg-muted text-muted-foreground"
           }`}
         >
-          <Icon className="h-5 w-5" />
+          <Icon className="h-4 md:h-5 w-4 md:w-5" />
         </div>
-        <span className="text-sm text-muted-foreground">{label}</span>
+        <span className="text-xs md:text-sm text-muted-foreground truncate">
+          {label}
+        </span>
       </div>
-      <p className="text-3xl font-bold text-foreground">{value}</p>
+      <p className="text-2xl md:text-3xl font-bold text-foreground">{value}</p>
     </motion.div>
   );
 };
@@ -104,14 +106,16 @@ const AdminDashboard = () => {
 
   return (
     <Layout>
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold text-foreground tracking-tight">
+      <div className="mb-6 md:mb-8">
+        <h1 className="text-2xl md:text-3xl font-bold text-foreground tracking-tight">
           Admin Dashboard
         </h1>
-        <p className="text-muted-foreground mt-1">Overview of your platform</p>
+        <p className="text-sm md:text-base text-muted-foreground mt-1">
+          Overview of your platform
+        </p>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5 mb-10">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 md:gap-5 mb-8 md:mb-10">
         <StatCard
           icon={Users}
           label="Registered Users"
@@ -142,35 +146,41 @@ const AdminDashboard = () => {
       </div>
 
       <div className="glass rounded-xl overflow-hidden">
-        <div className="px-6 py-4 border-b border-border">
-          <h2 className="font-semibold text-foreground">Recent Documents</h2>
+        <div className="px-4 md:px-6 py-3 md:py-4 border-b border-border">
+          <h2 className="text-base md:text-lg font-semibold text-foreground">
+            Recent Documents
+          </h2>
         </div>
         <div className="divide-y divide-border">
           {isLoading && (
-            <div className="px-6 py-4 text-sm text-muted-foreground">
+            <div className="px-4 md:px-6 py-4 text-sm text-muted-foreground">
               Loading recent documents...
             </div>
           )}
           {!isLoading && recentPdfs.length === 0 && (
-            <div className="px-6 py-4 text-sm text-muted-foreground">
+            <div className="px-4 md:px-6 py-4 text-sm text-muted-foreground">
               No documents available
             </div>
           )}
           {recentPdfs.map((pdf) => (
             <div
               key={pdf._id}
-              className="px-6 py-3 flex items-center justify-between"
+              className="px-4 md:px-6 py-3 flex flex-col md:flex-row md:items-center md:justify-between gap-2"
             >
-              <div className="flex items-center gap-3">
-                <FileText className="h-4 w-4 text-primary" />
-                <span className="text-sm text-foreground">
+              <div className="flex items-center gap-2 md:gap-3 min-w-0">
+                <FileText className="h-4 w-4 text-primary flex-shrink-0" />
+                <span className="text-sm text-foreground truncate">
                   {pdf.title || pdf.originalName}
                 </span>
               </div>
-              <div className="flex items-center gap-4 text-xs text-muted-foreground">
-                <span>{pdf.uploadedBy || "Admin"}</span>
-                <span>{formatDate(pdf.createdAt || Date.now())}</span>
-                <span>{pdf.locked ? "Locked" : "Open"}</span>
+              <div className="flex flex-wrap items-center gap-2 md:gap-4 text-xs text-muted-foreground">
+                <span className="truncate">{pdf.uploadedBy || "Admin"}</span>
+                <span className="whitespace-nowrap">
+                  {formatDate(pdf.createdAt || Date.now())}
+                </span>
+                <span className="whitespace-nowrap">
+                  {pdf.locked ? "Locked" : "Open"}
+                </span>
               </div>
             </div>
           ))}
