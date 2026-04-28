@@ -24,7 +24,9 @@ const getUserHomePath = (user) => {
 };
 
 const ProtectedRoute = ({ children, role, requireSubscription = false }) => {
-  const { user } = useAuth();
+  const { user, isAuthResolved } = useAuth();
+
+  if (!isAuthResolved) return null;
 
   if (!user) return <Navigate to="/login" replace />;
   if (role && user.role !== role) return <Navigate to="/" replace />;
@@ -36,7 +38,9 @@ const ProtectedRoute = ({ children, role, requireSubscription = false }) => {
 };
 
 const PublicRoute = ({ children }) => {
-  const { user } = useAuth();
+  const { user, isAuthResolved } = useAuth();
+
+  if (!isAuthResolved) return null;
 
   if (user) {
     return <Navigate to={getUserHomePath(user)} replace />;

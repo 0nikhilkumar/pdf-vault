@@ -15,6 +15,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import PdfViewer from "@/components/PdfViewer";
 import { buildApiUrl, parseJsonSafely } from "@/lib/api";
+import logo from "../../assets/logo.jpeg";
 
 const features = [
   {
@@ -169,9 +170,16 @@ const Index = () => {
           transition={{ duration: 0.5 }}
           className="mb-8 md:mb-14 flex items-center justify-between gap-4 rounded-2xl border border-border bg-card px-3 md:px-4 py-3"
         >
-          <h1 className="text-lg md:text-xl lg:text-2xl font-bold tracking-tight">
-            Export Import
-          </h1>
+          <div className="flex min-w-0 items-center gap-1 sm:gap-2">
+            <img
+              src={logo}
+              alt="Export Import logo"
+              className="h-12 w-auto shrink-0 object-contain sm:h-16"
+            />
+            <span className="truncate text-sm font-semibold tracking-tight text-foreground sm:text-base md:text-lg">
+              Export Import
+            </span>
+          </div>
           {user && (
             <div className="flex items-center gap-2 rounded-full border border-border bg-background/70 px-3 py-2">
               <div className="h-8 w-8 rounded-full bg-primary/15 flex items-center justify-center text-primary">
@@ -468,31 +476,22 @@ const Index = () => {
           </div>
         </section>
 
-        <footer className="border-t border-border py-6 md:py-8 text-xs md:text-sm text-muted-foreground flex flex-col sm:flex-row flex-wrap items-start sm:items-center justify-between gap-3 sm:gap-4">
-          <span>Export Import © 2026.</span>
-          <div className="flex items-center gap-3 md:gap-4 flex-wrap">
-            <button
-              type="button"
-              className="hover:text-foreground transition-colors"
-              onClick={() => navigate("/login")}
+        <footer className="w-full border-t border-border bg-background/80 px-4 py-4 mt-8 text-xs text-muted-foreground flex flex-col sm:flex-row items-center justify-between gap-2">
+          <span>
+            &copy; {new Date().getFullYear()} Export Import. All rights
+            reserved.
+          </span>
+          <span>
+            Developed by{" "}
+            <a
+              href="https://Niodev.in"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="underline hover:text-primary"
             >
-              Login
-            </button>
-            <button
-              type="button"
-              className="hover:text-foreground transition-colors"
-              onClick={() => navigate("/signup")}
-            >
-              Signup
-            </button>
-            <button
-              type="button"
-              className="hover:text-foreground transition-colors"
-              onClick={handleDashboardNavigation}
-            >
-              Dashboard
-            </button>
-          </div>
+              Niodev
+            </a>
+          </span>
         </footer>
 
         {viewingPdf && (

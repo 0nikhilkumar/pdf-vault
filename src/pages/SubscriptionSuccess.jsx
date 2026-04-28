@@ -10,8 +10,7 @@ import { useToast } from "@/hooks/use-toast";
 const SUCCESS_REFRESH_KEY = "docvault.subscription.successRefreshed";
 
 const SubscriptionSuccess = () => {
-  const { user, accessToken, selectedSubscriptionPlan, subscriptionPlans } =
-    useAuth();
+  const { user, selectedSubscriptionPlan, subscriptionPlans } = useAuth();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { toast } = useToast();
@@ -41,20 +40,10 @@ const SubscriptionSuccess = () => {
         return;
       }
 
-      if (!accessToken) {
-        toast({
-          title: "Verification failed",
-          description: "Session expired. Please log in again.",
-          variant: "destructive",
-        });
-        setIsVerifying(false);
-        return;
-      }
-
       try {
         const sessionId = searchParams.get("session_id");
         const endpoint = new URL(
-          "http://localhost:3000/api/users/razorpay/subscription",
+          "http://localhost:3001/api/users/razorpay/subscription",
         );
         if (sessionId) {
           endpoint.searchParams.set("session_id", sessionId);
@@ -63,9 +52,6 @@ const SubscriptionSuccess = () => {
         const response = await fetch(endpoint.toString(), {
           method: "GET",
           credentials: "include",
-          headers: {
-            Authorization: `Bearer ${accessToken}`,
-          },
         });
 
         const data = await response.json();
@@ -99,7 +85,7 @@ const SubscriptionSuccess = () => {
     };
 
     verifySubscription();
-  }, [accessToken, searchParams, toast, user]);
+  }, [searchParams, toast, user]);
 
   return (
     <Layout>

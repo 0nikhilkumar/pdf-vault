@@ -3,6 +3,9 @@ import { motion } from "framer-motion";
 import { Crown, FileText, TrendingUp, Users } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import Layout from "@/components/Layout";
+import PdfViewer from "@/components/PdfViewer";
+import { Button } from "@/components/ui/button";
+import { Eye } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { formatDate } from "@/lib/utils";
 import { buildApiUrl, parseJsonSafely, withAuthHeader } from "@/lib/api";
@@ -49,6 +52,7 @@ const AdminDashboard = () => {
   });
   const [pdfs, setPdfs] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [viewingPdf, setViewingPdf] = useState(null);
 
   useEffect(() => {
     let isMounted = true;
@@ -181,11 +185,23 @@ const AdminDashboard = () => {
                 <span className="whitespace-nowrap">
                   {pdf.locked ? "Locked" : "Open"}
                 </span>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setViewingPdf(pdf)}
+                  className="h-8 ml-2"
+                >
+                  <Eye className="h-4 w-4 mr-2" />
+                  View
+                </Button>
               </div>
             </div>
           ))}
         </div>
       </div>
+      {viewingPdf && (
+        <PdfViewer pdf={viewingPdf} onClose={() => setViewingPdf(null)} />
+      )}
     </Layout>
   );
 };

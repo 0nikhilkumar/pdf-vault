@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
+import logo from "../../assets/logo.jpeg";
 
 const getUserDisplayName = (user) => user?.name || "User";
 
@@ -149,11 +150,13 @@ const Layout = ({ children }) => {
       {/* Mobile Header */}
       <div className="md:hidden sticky top-0 z-40 border-b border-border bg-card px-4 py-3">
         <div className="flex items-center justify-between">
-          <Link to="/" className="flex items-center gap-2">
-            <div className="h-8 w-8 rounded-lg bg-primary flex items-center justify-center glow-primary">
-              <FileText className="h-4 w-4 text-primary-foreground" />
-            </div>
-            <span className="text-base font-bold text-foreground">
+          <Link to="/" className="flex min-w-0 items-center gap-1 sm:gap-2">
+            <img
+              src={logo}
+              alt="PDF Vault logo"
+              className="h-10 w-auto shrink-0 object-contain sm:h-12"
+            />
+            <span className="truncate text-xs font-semibold tracking-tight text-foreground sm:text-sm">
               Export Import
             </span>
           </Link>
@@ -189,11 +192,13 @@ const Layout = ({ children }) => {
         className="md:translate-x-0 fixed md:static w-64 border-r border-border bg-card flex flex-col h-screen md:h-auto z-40 md:z-auto"
       >
         <div className="p-6 border-b border-border hidden md:block">
-          <Link to="/" className="flex items-center gap-3">
-            <div className="h-9 w-9 rounded-lg bg-primary flex items-center justify-center glow-primary">
-              <FileText className="h-5 w-5 text-primary-foreground" />
-            </div>
-            <span className="text-lg font-bold text-foreground tracking-tight">
+          <Link to="/" className="flex min-w-0 items-center gap-2">
+            <img
+              src={logo}
+              alt="PDF Vault logo"
+              className="h-10 w-auto shrink-0 object-contain lg:h-12"
+            />
+            <span className="truncate text-sm font-semibold tracking-tight text-foreground lg:text-base">
               Export Import
             </span>
           </Link>
@@ -262,6 +267,23 @@ const Layout = ({ children }) => {
         >
           {children}
         </motion.div>
+        <footer className="w-full border-t border-border bg-background/80 px-4 py-4 mt-8 text-xs text-muted-foreground flex flex-col md:flex-row items-center justify-between gap-2">
+          <span>
+            &copy; {new Date().getFullYear()} Export Import. All rights
+            reserved.
+          </span>
+          <span>
+            Developed by{" "}
+            <a
+              href="https://Niodev.in"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="underline hover:text-primary"
+            >
+              Niodev
+            </a>
+          </span>
+        </footer>
       </main>
     </div>
   );

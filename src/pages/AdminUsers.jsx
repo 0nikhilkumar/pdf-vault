@@ -48,7 +48,7 @@ const AdminUsers = () => {
           Array.isArray(allUsersPayload?.users) ? allUsersPayload.users : [],
         );
       } else {
-        setUsers([]);
+        throw new Error(allUsersPayload?.message || "Unable to load users");
       }
 
       if (subscribedUsersResponse.ok) {
@@ -58,8 +58,18 @@ const AdminUsers = () => {
             : [],
         );
       } else {
-        setSubscribedUsers([]);
+        throw new Error(
+          subscribedUsersPayload?.message || "Unable to load subscribed users",
+        );
       }
+    } catch (error) {
+      setUsers([]);
+      setSubscribedUsers([]);
+      toast({
+        title: "Unable to load users",
+        description: error?.message || "Please try again",
+        variant: "destructive",
+      });
     } finally {
       setIsLoadingUsers(false);
     }

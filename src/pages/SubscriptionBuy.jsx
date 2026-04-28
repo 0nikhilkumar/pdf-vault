@@ -15,9 +15,9 @@ import { useToast } from "@/hooks/use-toast";
 import { formatDate } from "@/lib/utils";
 
 const API_BASE_URL =
-  import.meta.env.VITE_API_BASE_URL || "http://localhost:3000/api";
+  import.meta.env.VITE_API_BASE_URL || "http://localhost:3001/api";
 const RAZORPAY_BASE_PATH = `${API_BASE_URL}/users/razorpay`;
-const RAZORPAY_SCRIPT_URL = "https://checkout.razorpay.com/v1/checkout.js";
+const RAZORPAY_SCRIPT_URL = import.meta.env.VITE_RAZORPAY_SCRIPT_URL;
 
 const getCheckoutRedirectUrl = (payload) =>
   payload?.url || payload?.checkoutUrl || payload?.short_url || null;
@@ -210,9 +210,6 @@ const SubscriptionBuy = () => {
       try {
         setIsSubmitting(true);
 
-        if (!accessToken) {
-          throw new Error("Please log in again to continue checkout");
-        }
         if (!plan?.id && !plan?.priceId) {
           throw new Error("Selected plan information is missing");
         }
@@ -225,7 +222,6 @@ const SubscriptionBuy = () => {
             credentials: "include",
             headers: {
               "Content-Type": "application/json",
-              Authorization: `Bearer ${accessToken}`,
             },
             body: JSON.stringify({
               ...(gatewayPlanId ? { priceId: gatewayPlanId } : {}),

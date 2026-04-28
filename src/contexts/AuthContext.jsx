@@ -3,13 +3,6 @@ import { API_BASE_URL } from "@/lib/api";
 
 const AuthContext = createContext(null);
 
-const STORAGE_KEYS = {
-  user: "docvault.auth.user",
-  users: "docvault.auth.users",
-  accessToken: "docvault.auth.accessToken",
-  refreshToken: "docvault.auth.refreshToken",
-};
-
 const splitFeatures = (description = "") =>
   String(description)
     .split("\n")
@@ -77,17 +70,6 @@ const normalizePlanId = (planValue, fallback = "basic") => {
   }
 
   return fallback;
-};
-
-const readStorage = (key, fallbackValue = null) => {
-  try {
-    const value = sessionStorage.getItem(key);
-    if (!value) return fallbackValue;
-    if (typeof fallbackValue === "string") return value;
-    return JSON.parse(value);
-  } catch {
-    return fallbackValue;
-  }
 };
 
 const formatDate = (value) => {
@@ -161,53 +143,69 @@ export const AuthProvider = ({ children }) => {
     );
   })();
 
-  // State initialization from sessionStorage
-  const [users, setUsers] = useState(() => readStorage(STORAGE_KEYS.users, []));
-  const [user, setUser] = useState(() => readStorage(STORAGE_KEYS.user, null));
-  const [accessToken, setAccessToken] = useState(() =>
-    readStorage(STORAGE_KEYS.accessToken, ""),
-  );
-  const [refreshToken, setRefreshToken] = useState(() =>
-    readStorage(STORAGE_KEYS.refreshToken, ""),
-  );
+  const [users, setUsers] = useState([]);
+  const [user, setUser] = useState(null);
+  const [accessToken, setAccessToken] = useState("");
+  const [refreshToken, setRefreshToken] = useState("");
+  const [isAuthResolved, setIsAuthResolved] = useState(false);
   const [subscriptionPlans, setSubscriptionPlans] = useState([]);
   const [isLoadingSubscriptionPlans, setIsLoadingSubscriptionPlans] =
     useState(true);
 
-  // Sync state to sessionStorage
   useEffect(() => {
-    sessionStorage.setItem(STORAGE_KEYS.users, JSON.stringify(users));
-  }, [users]);
+    let isMounted = true;
 
-  useEffect(() => {
-    if (user) {
-      sessionStorage.setItem(STORAGE_KEYS.user, JSON.stringify(user));
-    } else {
-      sessionStorage.removeItem(STORAGE_KEYS.user);
-    }
-  }, [user]);
+    const restoreSession = async () => {
+      try {
+        const response = await fetch(`${API_BASE_URL}/users/me`, {
+          method: "GET",
+          credentials: "include",
+        });
 
-  useEffect(() => {
-    if (accessToken) {
-      sessionStorage.setItem(STORAGE_KEYS.accessToken, accessToken);
-    } else {
-      sessionStorage.removeItem(STORAGE_KEYS.accessToken);
-    }
-  }, [accessToken]);
+        const payload = await parseApiResponse(response);
 
-  useEffect(() => {
-    if (refreshToken) {
-      sessionStorage.setItem(STORAGE_KEYS.refreshToken, refreshToken);
-    } else {
-      sessionStorage.removeItem(STORAGE_KEYS.refreshToken);
-    }
-  }, [refreshToken]);
+        if (!response.ok) {
+          if (isMounted) {
+            setUser(null);
+            setUsers([]);
+            setAccessToken("");
+            setRefreshToken("");
+          }
+          return;
+        }
+
+        const normalized = normalizeUser(payload?.user || payload);
+
+        if (isMounted) {
+          setUser(normalized);
+          setUsers(normalized ? [normalized] : []);
+        }
+      } catch {
+        if (isMounted) {
+          setUser(null);
+          setUsers([]);
+          setAccessToken("");
+          setRefreshToken("");
+        }
+      } finally {
+        if (isMounted) {
+          setIsAuthResolved(true);
+        }
+      }
+    };
+
+    restoreSession();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   useEffect(() => {
     let isMounted = true;
 
     const loadSubscriptionPlans = async () => {
-      if (!accessToken) {
+      if (!user?.id) {
         if (isMounted) {
           setSubscriptionPlans([]);
           setIsLoadingSubscriptionPlans(false);
@@ -262,7 +260,7 @@ export const AuthProvider = ({ children }) => {
     return () => {
       isMounted = false;
     };
-  }, [accessToken]);
+  }, [user?.id]);
 
   const authHeaders = (headers = {}) => {
     if (!accessToken) return headers;
@@ -299,7 +297,7 @@ export const AuthProvider = ({ children }) => {
   };
 
   const updateProfile = async (profileData = {}) => {
-    if (!accessToken || !user?.id) {
+    if (!user?.id) {
       return {
         success: false,
         message: "Please log in again to update your profile",
@@ -576,7 +574,7 @@ export const AuthProvider = ({ children }) => {
   }, [isRefreshLoad, user?.id]);
 
   const extendCurrentSubscription = async () => {
-    if (!user?.id || !accessToken) {
+    if (!user?.id) {
       return {
         success: false,
         message: "Please log in again to extend your subscription",
@@ -614,7 +612,6 @@ export const AuthProvider = ({ children }) => {
         credentials: "include",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${accessToken}`,
           "x-user-id": user.id,
           "x-user-email": user.email || "",
         },
@@ -637,7 +634,6 @@ export const AuthProvider = ({ children }) => {
             credentials: "include",
             headers: {
               "Content-Type": "application/json",
-              Authorization: `Bearer ${accessToken}`,
               "x-user-id": user.id,
               "x-user-email": user.email || "",
             },
@@ -699,6 +695,7 @@ export const AuthProvider = ({ children }) => {
     <AuthContext.Provider
       value={{
         user,
+        isAuthResolved,
         accessToken,
         refreshToken,
         login,

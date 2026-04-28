@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
-import { Check, FileText, Lock, Upload } from "lucide-react";
+import { Check, FileText, Lock, Upload, Eye } from "lucide-react";
+import PdfViewer from "@/components/PdfViewer";
 import Layout from "@/components/Layout";
 import { useAuth } from "@/contexts/AuthContext";
 import { usePdfs } from "@/contexts/PdfContext";
@@ -10,7 +11,7 @@ import { useToast } from "@/hooks/use-toast";
 
 const UserUpload = () => {
   const { user, accessToken } = useAuth();
-  const { addPdf, refreshPdfs } = usePdfs();
+  const { addPdf, refreshPdfs, pdfs, isLoadingPdfs } = usePdfs();
   const { toast } = useToast();
   const [selectedFile, setSelectedFile] = useState(null);
   const [uploaded, setUploaded] = useState(false);
@@ -42,7 +43,7 @@ const UserUpload = () => {
       const formData = new FormData();
       formData.append("pdf", selectedFile);
 
-      const response = await fetch("http://localhost:3000/api/users/upload", {
+      const response = await fetch("http://localhost:3001/api/users/upload", {
         method: "POST",
         credentials: "include",
         headers: {
@@ -155,6 +156,53 @@ const UserUpload = () => {
           </div>
         </div>
       </motion.div>
+
+      <motion.div
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="max-w-lg mt-6"
+      >
+        <div className="glass rounded-xl p-4">
+          <h3 className="text-sm font-medium text-foreground mb-3">
+            Your recent uploads
+          </h3>
+          {isLoadingPdfs ? (
+            <div className="text-sm text-muted-foreground">Loading...</div>
+          ) : pdfs.length === 0 ? (
+            <div className="text-sm text-muted-foreground">No uploads yet</div>
+          ) : (
+            <div className="space-y-2">
+              {pdfs.map((p) => (
+                <div
+                  key={p.id}
+                  className="flex items-center justify-between gap-3"
+                >
+                  <div className="min-w-0">
+                    <div className="text-sm text-foreground truncate">
+                      {p.name}
+                    </div>
+                    <div className="text-xs text-muted-foreground">
+                      {p.uploadedAt} • {p.uploadedBy}
+                    </div>
+                  </div>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => setViewingPdf(p)}
+                  >
+                    <Eye className="h-4 w-4 mr-2" />
+                    View
+                  </Button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </motion.div>
+
+      {viewingPdf && (
+        <PdfViewer pdf={viewingPdf} onClose={() => setViewingPdf(null)} />
+      )}
     </Layout>
   );
 };
