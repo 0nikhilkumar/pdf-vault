@@ -1,14 +1,18 @@
-import { useEffect, useMemo, useState } from "react";
-import { motion } from "framer-motion";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { motion, AnimatePresence } from "framer-motion";
 import {
   ArrowRight,
   Calendar,
   FileText,
+  LayoutDashboard,
   Lock,
   LockKeyhole,
+  LogOut,
   ShieldCheck,
   Sparkles,
   UserCircle,
+  Users,
+  Eye,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
@@ -42,7 +46,6 @@ const parseLockedFlag = (value) => {
     if (normalized === "true") return true;
     if (normalized === "false") return false;
   }
-
   return Boolean(value);
 };
 
@@ -78,12 +81,150 @@ const normalizeLandingPdf = (item, index) => {
   };
 };
 
+// ─── User Dropdown Component ───────────────────────────────────────────────
+const UserDropdown = ({ user, onNavigate }) => {
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+  const { logout } = useAuth();
+  const navigate = useNavigate();
+
+  // Close on outside click
+  useEffect(() => {
+    const handler = (e) => {
+      if (ref.current && !ref.current.contains(e.target)) {
+        setOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
+
+  const handleDashboard = () => {
+    setOpen(false);
+    onNavigate();
+  };
+
+  const handleProfile = () => {
+    setOpen(false);
+    navigate("/profile");
+  };
+
+  const handleLogout = () => {
+    setOpen(false);
+    logout();
+    navigate("/");
+  };
+
+  return (
+    <div className="relative" ref={ref}>
+      {/* Trigger Button */}
+      <button
+        onClick={() => setOpen((prev) => !prev)}
+        className="flex items-center gap-2 rounded-full border border-border bg-background/70 px-3 py-2 hover:bg-muted/60 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+      >
+        <div className="h-8 w-8 rounded-full bg-primary/15 flex items-center justify-center text-primary">
+          <UserCircle className="h-4 w-4" />
+        </div>
+        <div className="text-left hidden sm:block">
+          <p className="text-sm font-medium text-foreground leading-none">
+            {user.name}
+          </p>
+        </div>
+        {/* Chevron */}
+        <svg
+          className={`h-3.5 w-3.5 text-muted-foreground transition-transform duration-200 ${open ? "rotate-180" : ""}`}
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke="currentColor"
+          strokeWidth={2.5}
+        >
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            d="M19 9l-7 7-7-7"
+          />
+        </svg>
+      </button>
+
+      {/* Dropdown Menu */}
+      <AnimatePresence>
+        {open && (
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95, y: -6 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.95, y: -6 }}
+            transition={{ duration: 0.15, ease: "easeOut" }}
+            className="absolute right-0 mt-2 w-52 rounded-2xl border border-border bg-card shadow-xl z-50 overflow-hidden"
+          >
+            {/* User Info Header */}
+            <div className="px-4 py-3 border-b border-border bg-muted/30">
+              <p className="text-xs font-semibold text-foreground truncate">
+                {user.name}
+              </p>
+              {user.email && (
+                <p className="text-[11px] text-muted-foreground truncate mt-0.5">
+                  {user.email}
+                </p>
+              )}
+            </div>
+
+            {/* Menu Items */}
+            <div className="p-1.5 flex flex-col gap-0.5">
+              <button
+                onClick={handleDashboard}
+                className="flex items-center gap-3 w-full rounded-xl px-3 py-2.5 text-sm text-foreground hover:bg-primary/10 hover:text-primary transition-colors text-left"
+              >
+                <LayoutDashboard className="h-4 w-4 flex-shrink-0" />
+                Dashboard
+              </button>
+
+              <button
+                onClick={handleProfile}
+                className="flex items-center gap-3 w-full rounded-xl px-3 py-2.5 text-sm text-foreground hover:bg-primary/10 hover:text-primary transition-colors text-left"
+              >
+                <UserCircle className="h-4 w-4 flex-shrink-0" />
+                Profile
+              </button>
+
+              <div className="my-1 border-t border-border" />
+
+              <button
+                onClick={handleLogout}
+                className="flex items-center gap-3 w-full rounded-xl px-3 py-2.5 text-sm text-red-400 hover:bg-red-500/10 transition-colors text-left"
+              >
+                <LogOut className="h-4 w-4 flex-shrink-0" />
+                Logout
+              </button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+};
+
+// ─── Main Index Component ──────────────────────────────────────────────────
 const Index = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
   const [landingPdfs, setLandingPdfs] = useState([]);
   const [isLoadingLandingPdfs, setIsLoadingLandingPdfs] = useState(true);
   const [viewingPdf, setViewingPdf] = useState(null);
+
+  const [siteStats, setSiteStats] = useState({ users: 350, pdfs: 50, visits: 1369 });
+
+  useEffect(() => {
+    fetch(buildApiUrl("/stats/public"))
+      .then((r) => r.json())
+      .then((d) => {
+        setSiteStats({
+          users: d?.totalUsers ?? d?.users ?? 0,
+          pdfs: d?.totalPdfs ?? d?.pdfs ?? 0,
+          visits: d?.totalVisits ?? d?.visits ?? 0,
+        });
+      })
+      .catch(() => {});
+  }, []);
 
   useEffect(() => {
     let ignore = false;
@@ -164,6 +305,7 @@ const Index = () => {
       </div>
 
       <div className="relative z-10 mx-auto max-w-6xl px-4 md:px-6 py-6 md:py-8 lg:py-10">
+        {/* ── Header ── */}
         <motion.header
           initial={{ opacity: 0, y: -10 }}
           animate={{ opacity: 1, y: 0 }}
@@ -176,21 +318,20 @@ const Index = () => {
               alt="Export Import logo"
               className="h-12 w-auto shrink-0 object-contain sm:h-16"
             />
-            <span className="truncate text-sm font-semibold tracking-tight text-foreground sm:text-base md:text-lg">
-              Export Import
-            </span>
           </div>
-          {user && (
-            <div className="flex items-center gap-2 rounded-full border border-border bg-background/70 px-3 py-2">
-              <div className="h-8 w-8 rounded-full bg-primary/15 flex items-center justify-center text-primary">
-                <UserCircle className="h-4 w-4" />
-              </div>
-              <div className="text-left">
-                <p className="text-sm font-medium text-foreground leading-none">
-                  {user.name}
-                </p>
-              </div>
-            </div>
+
+          {/* ── Auth Area ── */}
+          {user ? (
+            <UserDropdown user={user} onNavigate={handleDashboardNavigation} />
+          ) : (
+            <Button
+              size="sm"
+              onClick={() => navigate("/login")}
+              className="h-9 px-4 text-sm gap-2"
+            >
+              Login
+              <ArrowRight className="h-3.5 w-3.5" />
+            </Button>
           )}
         </motion.header>
 
@@ -407,6 +548,62 @@ const Index = () => {
           ))}
         </section>
 
+        {/* ── Platform Stats Strip (always visible) ── */}
+        <section className="mt-12 md:mt-16 grid grid-cols-1 sm:grid-cols-3 gap-3 md:gap-4">
+          {[
+            {
+              label: "Registered Users",
+              value:
+                siteStats.users > 999
+                  ? `${(siteStats.users / 1000).toFixed(1)}k`
+                  : siteStats.users,
+              sub: "+128 this month",
+              icon: <Users className="h-4 w-4" />,
+              iconBg: "bg-blue-500/10",
+              iconColor: "text-blue-500",
+            },
+            {
+              label: "PDFs Uploaded",
+              value: siteStats.pdfs,
+              sub: "24 added this week",
+              icon: <FileText className="h-4 w-4" />,
+              iconBg: "bg-primary/10",
+              iconColor: "text-primary",
+            },
+            {
+              label: "Total Visits",
+              value:
+                siteStats.visits > 999
+                  ? `${(siteStats.visits / 1000).toFixed(1)}k`
+                  : siteStats.visits,
+              sub: "All-time page hits",
+              icon: <Eye className="h-4 w-4" />,
+              iconBg: "bg-emerald-500/10",
+              iconColor: "text-emerald-500",
+            },
+          ].map((stat, i) => (
+            <motion.div
+              key={stat.label}
+              initial={{ opacity: 0, y: 12 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ duration: 0.35, delay: i * 0.07 }}
+              className="rounded-2xl border border-border bg-card p-4 md:p-5"
+            >
+              <div
+                className={`h-8 w-8 rounded-xl ${stat.iconBg} flex items-center justify-center ${stat.iconColor} mb-3`}
+              >
+                {stat.icon}
+              </div>
+              <p className="text-xs text-muted-foreground mb-1">{stat.label}</p>
+              <p className="text-2xl md:text-3xl font-bold tracking-tight">
+                {stat.value}
+              </p>
+              <p className="text-xs text-muted-foreground mt-1">{stat.sub}</p>
+            </motion.div>
+          ))}
+        </section>
+
         <section className="mt-14 md:mt-20">
           <motion.div
             initial={{ opacity: 0, y: 14 }}
@@ -444,37 +641,105 @@ const Index = () => {
           </div>
         </section>
 
-        <section className="mt-14 md:mt-20 mb-8 md:mb-10 rounded-2xl md:rounded-3xl border border-primary/35 bg-primary/10 p-5 md:p-7 lg:p-10 text-center">
-          <h3 className="text-2xl md:text-3xl font-bold tracking-tight">
-            Ready to start reading securely?
-          </h3>
-          <p className="mt-2 md:mt-3 text-xs md:text-base text-muted-foreground">
-            Sign in now and jump into your document dashboard.
-          </p>
-          <div className="mt-4 md:mt-6 flex flex-col sm:flex-row flex-wrap justify-center gap-2 md:gap-3">
-            <Button
-              onClick={() => navigate("/login")}
-              className="w-full sm:w-auto h-9 md:h-10 text-sm"
-            >
-              Login
-              <ArrowRight className="h-4 w-4" />
-            </Button>
-            <Button
-              variant="outline"
-              onClick={() => navigate("/signup")}
-              className="w-full sm:w-auto h-9 md:h-10 text-sm"
-            >
-              Create Account
-            </Button>
-            <Button
-              variant="outline"
-              onClick={handleDashboardNavigation}
-              className="w-full sm:w-auto h-9 md:h-10 text-sm"
-            >
-              {user ? "Go to Dashboard" : "Open Dashboard"}
-            </Button>
-          </div>
-        </section>
+        {user ? (
+          /* ── Logged-in: Personalized Welcome Banner ── */
+          <motion.section
+            initial={{ opacity: 0, y: 16 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            className="mt-4 mb-8 md:mb-10 rounded-2xl border border-border bg-card overflow-hidden"
+          >
+            <div className="p-5 md:p-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+              {/* User info */}
+              <div className="flex items-center gap-3">
+                <div className="h-12 w-12 rounded-full bg-primary/15 flex items-center justify-center text-primary font-semibold text-sm flex-shrink-0 tracking-wide">
+                  {user.name?.slice(0, 2).toUpperCase()}
+                </div>
+                <div>
+                  <p className="text-[11px] text-muted-foreground mb-1">
+                    Welcome back
+                  </p>
+                  <p className="text-sm font-semibold text-foreground leading-none">
+                    {user.name}
+                  </p>
+                  {user.email && (
+                    <p className="text-xs text-muted-foreground mt-1 truncate max-w-[200px]">
+                      {user.email}
+                    </p>
+                  )}
+                </div>
+              </div>
+
+              {/* Action buttons */}
+              <div className="flex gap-2 flex-wrap">
+                <Button
+                  size="sm"
+                  onClick={handleDashboardNavigation}
+                  className="h-9 px-4 text-sm gap-2"
+                >
+                  <LayoutDashboard className="h-3.5 w-3.5" />
+                  My Dashboard
+                </Button>
+                {featuredPdf && !featuredPdf.locked && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => setViewingPdf(featuredPdf)}
+                    className="h-9 px-4 text-sm gap-2"
+                  >
+                    <FileText className="h-3.5 w-3.5" />
+                    Latest PDF
+                  </Button>
+                )}
+              </div>
+            </div>
+
+            {/* Status footer strip */}
+            <div className="border-t border-border bg-secondary/20 px-5 md:px-6 py-2.5 flex flex-wrap items-center gap-4 text-xs text-muted-foreground">
+              <span className="inline-flex items-center gap-1.5">
+                <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                Secure session active
+              </span>
+              <span className="inline-flex items-center gap-1.5">
+                <FileText className="h-3 w-3" />
+                {landingPdfs.length} PDF{landingPdfs.length !== 1 ? "s" : ""}{" "}
+                available
+              </span>
+              {user.role === "admin" && (
+                <span className="inline-flex items-center gap-1.5 text-primary font-medium">
+                  <LockKeyhole className="h-3 w-3" />
+                  Admin access
+                </span>
+              )}
+            </div>
+          </motion.section>
+        ) : (
+          /* ── Logged-out: Original CTA ── */
+          <section className="mt-14 md:mt-20 mb-8 md:mb-10 rounded-2xl md:rounded-3xl border border-primary/35 bg-primary/10 p-5 md:p-7 lg:p-10 text-center">
+            <h3 className="text-2xl md:text-3xl font-bold tracking-tight">
+              Ready to start reading securely?
+            </h3>
+            <p className="mt-2 md:mt-3 text-xs md:text-base text-muted-foreground">
+              Sign in now and jump into your document dashboard.
+            </p>
+            <div className="mt-4 md:mt-6 flex flex-col sm:flex-row flex-wrap justify-center gap-2 md:gap-3">
+              <Button
+                onClick={() => navigate("/login")}
+                className="w-full sm:w-auto h-9 md:h-10 text-sm"
+              >
+                Login
+                <ArrowRight className="h-4 w-4" />
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => navigate("/signup")}
+                className="w-full sm:w-auto h-9 md:h-10 text-sm"
+              >
+                Create Account
+              </Button>
+            </div>
+          </section>
+        )}
 
         <footer className="w-full border-t border-border bg-background/80 px-4 py-4 mt-8 text-xs text-muted-foreground flex flex-col sm:flex-row items-center justify-between gap-2">
           <span>

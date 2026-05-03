@@ -156,9 +156,6 @@ const Layout = ({ children }) => {
               alt="PDF Vault logo"
               className="h-10 w-auto shrink-0 object-contain sm:h-12"
             />
-            <span className="truncate text-xs font-semibold tracking-tight text-foreground sm:text-sm">
-              Export Import
-            </span>
           </Link>
           <button
             onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
@@ -198,9 +195,6 @@ const Layout = ({ children }) => {
               alt="PDF Vault logo"
               className="h-10 w-auto shrink-0 object-contain lg:h-12"
             />
-            <span className="truncate text-sm font-semibold tracking-tight text-foreground lg:text-base">
-              Export Import
-            </span>
           </Link>
         </div>
 
