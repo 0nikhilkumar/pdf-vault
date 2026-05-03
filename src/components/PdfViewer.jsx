@@ -303,6 +303,10 @@ const PdfViewer = ({ pdf, onClose }) => {
       scrollTop: viewportRef.current.scrollTop,
     };
     setIsDraggingCanvas(true);
+
+    // Attach document-level handlers for smooth dragging
+    document.addEventListener("mousemove", handlePanMove);
+    document.addEventListener("mouseup", handlePanEnd);
   };
 
   const handlePanMove = (event) => {
@@ -320,7 +324,19 @@ const PdfViewer = ({ pdf, onClose }) => {
     if (!dragStateRef.current.isDragging) return;
     dragStateRef.current.isDragging = false;
     setIsDraggingCanvas(false);
+
+    // Remove document-level handlers
+    document.removeEventListener("mousemove", handlePanMove);
+    document.removeEventListener("mouseup", handlePanEnd);
   };
+
+  useEffect(() => {
+    return () => {
+      // Cleanup document-level listeners on unmount
+      document.removeEventListener("mousemove", handlePanMove);
+      document.removeEventListener("mouseup", handlePanEnd);
+    };
+  }, []);
 
   useEffect(() => {
     const contextMenuHandler = (event) => event.preventDefault();
@@ -438,28 +454,27 @@ const PdfViewer = ({ pdf, onClose }) => {
           ) : (
             <div
               ref={viewportRef}
-              className="relative flex min-h-[55vh] items-center justify-center overflow-auto bg-muted/30 p-2 sm:min-h-[65vh] sm:p-3 md:min-h-[75vh] md:p-4"
-              onMouseMove={handlePanMove}
-              onMouseUp={handlePanEnd}
-              onMouseLeave={handlePanEnd}
+              className="relative no-select min-h-[55vh] overflow-auto bg-muted/30 sm:min-h-[65vh] md:min-h-[75vh]"
             >
-              <canvas
-                ref={canvasRef}
-                title={pdf.name}
-                className={`bg-white rounded shadow select-none ${
-                  zoomLevel > 1
-                    ? isDraggingCanvas
-                      ? "cursor-grabbing"
-                      : "cursor-grab"
-                    : "cursor-default"
-                }`}
-                onMouseDown={handlePanStart}
-              />
-              {isRenderingPage && (
-                <div className="absolute inset-0 flex items-start justify-center pt-4 text-xs text-muted-foreground sm:pt-6">
-                  Rendering page...
-                </div>
-              )}
+              <div className="inline-flex min-w-full min-h-full items-center justify-center p-2 sm:p-3 md:p-4">
+                <canvas
+                  ref={canvasRef}
+                  title={pdf.name}
+                  className={`bg-white rounded shadow select-none ${
+                    zoomLevel > 1
+                      ? isDraggingCanvas
+                        ? "cursor-grabbing"
+                        : "cursor-grab"
+                      : "cursor-default"
+                  }`}
+                  onMouseDown={handlePanStart}
+                />
+                {isRenderingPage && (
+                  <div className="absolute inset-0 flex items-start justify-center pt-4 text-xs text-muted-foreground sm:pt-6">
+                    Rendering page...
+                  </div>
+                )}
+              </div>
             </div>
           )}
         </div>
